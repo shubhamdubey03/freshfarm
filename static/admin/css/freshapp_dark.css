@@ -1,0 +1,825 @@
+/* ============================================================
+   FreshApp Admin Dark Theme
+   Path: static/admin/css/freshapp_dark.css
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #0d1117;
+  --card: #161b22;
+  --card2: #1c2333;
+  --border: #30363d;
+  --hover: #21262d;
+  --accent: #0ea5e9;
+  --green: #22c55e;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --font: 'DM Sans', 'Segoe UI', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font) !important;
+}
+
+/* ── Header ── */
+#header {
+  background: var(--card) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 0 24px !important;
+  height: 52px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+
+/* ── Breadcrumbs ── */
+div.breadcrumbs {
+  background: var(--bg) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 9px 24px !important;
+  font-size: 12px !important;
+  color: var(--muted) !important;
+}
+
+div.breadcrumbs a {
+  color: var(--accent) !important;
+  text-decoration: none;
+}
+
+div.breadcrumbs a:hover {
+  text-decoration: underline;
+}
+
+/* ── Main content ── */
+#content {
+  background: var(--bg) !important;
+  padding: 20px 24px !important;
+}
+
+#content h1 {
+  color: var(--text) !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+
+/* ── NUCLEAR ROW FIX — force ALL table rows dark ── */
+/* Django sets white on tr directly; we need high specificity */
+body table tr,
+body table tbody tr,
+body table thead tr,
+#changelist table tr,
+#changelist table tbody tr,
+#result_list tr,
+#result_list tbody tr,
+.results table tr,
+.results table tbody tr {
+  background: var(--card) !important;
+  color: var(--text) !important;
+}
+
+/* Alternating row — make slightly different shade */
+#result_list tbody tr:nth-child(even),
+.results table tbody tr:nth-child(even) {
+  background: var(--card2) !important;
+}
+
+/* Hover state */
+#result_list tbody tr:hover,
+.results table tbody tr:hover,
+#changelist .results table tbody tr:hover td,
+#changelist .results table tbody tr:hover th {
+  background: var(--hover) !important;
+}
+
+/* Every cell inside rows must also be dark */
+body table td,
+body table th,
+#result_list td,
+#result_list th,
+.results table td,
+.results table th,
+#changelist .results table tbody td,
+#changelist .results table tbody th {
+  background: inherit !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 10px 14px !important;
+  font-size: 12px !important;
+}
+
+/* thead cells */
+#result_list thead th,
+.results table thead th,
+#changelist .results table thead th {
+  background: var(--card2) !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .07em !important;
+  white-space: nowrap;
+}
+
+#changelist .results table thead th a {
+  color: var(--muted) !important;
+  text-decoration: none !important;
+}
+
+#changelist .results table thead th a:hover {
+  color: var(--text) !important;
+}
+
+#changelist .results table thead th.sorted a {
+  color: var(--accent) !important;
+}
+
+/* Links inside table cells */
+#result_list td a,
+.results table td a,
+#changelist .results table tbody td a {
+  color: var(--accent) !important;
+  text-decoration: none;
+}
+
+#result_list td a:hover,
+.results table td a:hover {
+  text-decoration: underline;
+}
+
+/* ── Modules (app groups on index) ── */
+.module {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  margin-bottom: 16px !important;
+}
+
+.module caption,
+.module h2 {
+  background: var(--card2) !important;
+  color: var(--accent) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .09em !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  border-radius: 0 !important;
+}
+
+.module table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.module table th {
+  background: var(--card2) !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .06em !important;
+  padding: 9px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.module table td {
+  padding: 9px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+}
+
+.module table tr:last-child td {
+  border-bottom: none !important;
+}
+
+.module table tr:hover td {
+  background: var(--hover) !important;
+}
+
+.module table td a {
+  color: var(--accent) !important;
+  text-decoration: none;
+}
+
+.module table td a:hover {
+  text-decoration: underline;
+}
+
+/* ── Change list table ── */
+#changelist {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+#changelist .results table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+/* ── Search / toolbar ── */
+#toolbar {
+  background: var(--card) !important;
+  padding: 12px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#searchbar {
+  background: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  font-family: var(--font) !important;
+  width: 260px !important;
+}
+
+#searchbar:focus {
+  outline: none !important;
+  border-color: var(--accent) !important;
+}
+
+#searchbar::placeholder {
+  color: var(--muted);
+}
+
+/* ── Buttons ── */
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+a.button,
+.deletelink,
+a.deletelink {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  font-family: var(--font) !important;
+  cursor: pointer !important;
+  transition: all .15s ease !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 38px !important;
+}
+
+.button:hover,
+input[type=submit]:hover {
+  background: #0284c7 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, .2);
+}
+
+.deletelink,
+a.deletelink {
+  background: var(--red) !important;
+}
+
+.deletelink:hover {
+  background: #dc2626 !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, .2) !important;
+}
+
+
+/* ── Object tools ── */
+ul.object-tools {
+  float: right;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  gap: 8px;
+}
+
+ul.object-tools li a {
+  background: var(--card2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  padding: 6px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  transition: all .15s !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+ul.object-tools li a:hover {
+  background: var(--hover) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+ul.object-tools li a.addlink {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+ul.object-tools li a.addlink:hover {
+  background: #0284c7 !important;
+  color: #fff !important;
+}
+
+/* ── Filter sidebar ── */
+#changelist-filter {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+
+#changelist-filter h2 {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .08em !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  background: var(--card2) !important;
+}
+
+#changelist-filter h3 {
+  color: var(--text) !important;
+  font-size: 12px !important;
+  padding: 8px 14px 3px !important;
+}
+
+#changelist-filter li a {
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  padding: 3px 14px !important;
+  display: block;
+  text-decoration: none;
+}
+
+#changelist-filter li a:hover,
+#changelist-filter li.selected a {
+  color: var(--accent) !important;
+}
+
+/* ── Pagination ── */
+.paginator {
+  padding: 10px 14px !important;
+  background: var(--card) !important;
+  border-top: 1px solid var(--border) !important;
+  font-size: 12px !important;
+  color: var(--muted) !important;
+}
+
+.paginator a {
+  color: var(--accent) !important;
+  text-decoration: none;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 0 2px;
+}
+
+.paginator a:hover {
+  background: var(--hover);
+}
+
+.paginator .this-page {
+  background: var(--accent) !important;
+  color: #fff !important;
+  padding: 3px 7px;
+  border-radius: 4px;
+  margin: 0 2px;
+}
+
+/* ── Forms ── */
+div.form-row {
+  border-bottom: 1px solid var(--border) !important;
+  padding: 16px 24px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+}
+
+
+label {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .05em !important;
+  width: 160px !important;
+  min-width: 160px !important;
+  margin-top: 10px !important;
+  margin-right: 20px !important;
+}
+
+input[type=text],
+input[type=password],
+input[type=email],
+input[type=number],
+input[type=url],
+input[type=date],
+select,
+textarea {
+  background: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  padding: 7px 11px !important;
+  font-size: 12px !important;
+  font-family: var(--font) !important;
+  flex: 1 !important;
+  max-width: 500px !important;
+}
+
+textarea {
+  min-height: 100px !important;
+  max-width: 800px !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1) !important;
+}
+
+select option {
+  background: var(--card2);
+}
+
+/* ── Submit row ── */
+.submit-row {
+  background: var(--card) !important;
+  border-top: 1px solid var(--border) !important;
+  border-radius: 0 0 8px 8px !important;
+  padding: 16px 20px !important;
+  display: flex !important;
+  flex-direction: row-reverse !important;
+  /* Move Delete to the end but let's be careful */
+  justify-content: flex-start !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.submit-row p.deletelink {
+  margin: 0 !important;
+  padding: 0 !important;
+  margin-right: auto !important;
+  /* This pushes SAVE buttons to the right, or we keep standard */
+}
+
+/* If you want Save on left and Delete on right: */
+.submit-row {
+  flex-direction: row !important;
+}
+
+.submit-row p.deletelink {
+  margin-left: auto !important;
+  order: 2;
+  /* Ensure it stays on the right */
+}
+
+
+/* ── Actions ── */
+.actions {
+  background: var(--card2) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 9px 14px !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions select {
+  padding: 5px 9px !important;
+  font-size: 12px !important;
+}
+
+.actions label {
+  color: var(--muted) !important;
+  font-size: 12px !important;
+}
+
+/* ── Messages ── */
+ul.messagelist {
+  padding: 0 24px;
+  list-style: none;
+  margin-bottom: 16px;
+}
+
+ul.messagelist li {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  border-left: 3px solid;
+}
+
+ul.messagelist li.success {
+  background: rgba(34, 197, 94, .1);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+ul.messagelist li.error {
+  background: rgba(239, 68, 68, .1);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+ul.messagelist li.warning {
+  background: rgba(245, 158, 11, .1);
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+/* ── Login ── */
+body.login {
+  background: var(--bg) !important;
+}
+
+.login #container {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5) !important;
+}
+
+.login #header {
+  background: var(--card2) !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+/* ── Date hierarchy ── */
+.xfull {
+  background: var(--card2) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 8px 14px !important;
+}
+
+.xfull a {
+  color: var(--accent) !important;
+  font-size: 12px;
+}
+
+/* ── Checkbox column ── */
+#result_list thead th.action-checkbox-column,
+#result_list tbody td.action-checkbox {
+  background: inherit !important;
+  width: 20px !important;
+}
+
+input[type=checkbox] {
+  accent-color: var(--accent);
+}
+
+/* ── Selected row highlight ── */
+#result_list tbody tr.selected td,
+#result_list tbody tr.selected th {
+  background: rgba(14, 165, 233, .08) !important;
+}
+
+/* ── Empty changelist ── */
+#changelist .results p {
+  color: var(--muted) !important;
+  padding: 20px 14px !important;
+}
+
+/* ── Inlines (Tabular & Stacked) ── */
+.inline-group {
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  margin: 30px 0 !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+.inline-group h2 {
+  background: var(--card2) !important;
+  color: var(--accent) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .1em !important;
+  padding: 14px 20px !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.inline-related h3 {
+  background: var(--hover) !important;
+  color: var(--text) !important;
+  padding: 8px 15px !important;
+  font-size: 12px !important;
+}
+
+.inline-group .tabular fieldset.module {
+  border: none !important;
+  background: transparent !important;
+}
+
+.inline-group .tabular table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  /* Changed from separate to collapse for better alignment */
+  table-layout: auto !important;
+}
+
+.inline-group .tabular thead th {
+  background: var(--card2) !important;
+  color: var(--muted) !important;
+  padding: 12px 15px !important;
+  font-size: 11px !important;
+  border-bottom: 2px solid var(--border) !important;
+  text-align: left !important;
+}
+
+.inline-group .tabular tr.form-row td {
+  padding: 18px 15px !important;
+  /* Slightly more top padding */
+  border-bottom: 1px solid var(--border) !important;
+  vertical-align: top !important;
+  /* Changed to top for consistent input start line */
+  background: var(--card) !important;
+}
+
+
+/* Fix for overlapping ProductVariant object (1) text */
+.inline-group .tabular td.original {
+  vertical-align: middle !important;
+  width: auto !important;
+  min-width: 150px !important;
+  padding-right: 20px !important;
+}
+
+.inline-group .tabular td.original p {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+}
+
+/* Fix for inputs going outside of box */
+.inline-group .tabular td input[type=text],
+.inline-group .tabular td input[type=number],
+.inline-group .tabular td select {
+  width: 100% !important;
+  min-width: 100px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+
+/* Add another row button */
+.add-row a {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  color: var(--accent) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 15px 20px !important;
+  text-decoration: none !important;
+}
+
+.add-row a:before {
+  content: '+';
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.add-row a:hover {
+  color: var(--green) !important;
+}
+
+/* Fix for small cells like Stock */
+.column-stock input,
+.column-price input {
+  text-align: center !important;
+}
+
+/* ── DateTime Shortcuts Fix ── */
+.datetimeshortcuts {
+  color: var(--muted) !important;
+  font-size: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin-top: 5px !important;
+  white-space: nowrap !important;
+}
+
+.datetimeshortcuts a {
+  color: var(--accent) !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+}
+
+.datetimeshortcuts a:hover {
+  text-decoration: underline !important;
+}
+
+.vDateField,
+.vTimeField {
+  width: 130px !important;
+  padding-right: 30px !important;
+}
+
+/* Calendar/Clock Icon Fix */
+.datetimeshortcuts .date-icon,
+.datetimeshortcuts .clock-icon {
+  background-size: 14px 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+  opacity: 0.7 !important;
+  filter: invert(1);
+}
+
+/* Ensure inline tables scroll on mobile if necessary */
+.inline-group .tabular {
+  overflow-x: auto !important;
+}
+
+/* Fix for the "Note: You are 5.5 hours ahead..." text */
+.datetimeshortcuts+br+.help,
+.datetimeshortcuts+.help,
+.inline-group .tabular .help {
+  display: block !important;
+  font-size: 10px !important;
+  color: var(--muted) !important;
+  font-style: italic !important;
+  margin-top: 4px !important;
+  opacity: 0.8 !important;
+}
+
+/* ── CRITICAL UI FIXES ── */
+.actions {
+    display: block !important; /* Back to block container, we'll use inline-block for items */
+    padding: 15px 24px !important;
+    background: var(--card2) !important;
+    border-bottom: 2px solid var(--border) !important;
+    white-space: nowrap !important;
+}
+
+.actions label, 
+.actions select, 
+.actions button, 
+.actions input[type=submit], 
+.actions .action-counter {
+    display: inline-block !important;
+    vertical-align: middle !important;
+    margin: 0 15px 0 0 !important;
+    float: none !important;
+    position: static !important;
+    width: auto !important;
+}
+
+.actions select {
+    min-width: 150px !important;
+}
+
+.actions .action-counter {
+    margin-right: 0 !important;
+    color: var(--muted) !important;
+    font-size: 11px !important;
+}
+
+/* Ensure buttons don't have negative margins from anywhere */
+.actions .button, 
+.actions input[type=submit] {
+    margin-left: 0 !important;
+    height: 34px !important;
+    line-height: normal !important;
+}

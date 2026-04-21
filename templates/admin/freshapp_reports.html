@@ -1,0 +1,485 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Reports & Analytics | FreshApp Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  #content      { padding: 0 !important; background: #0d1117 !important; }
+  #content-main { padding: 0 !important; }
+  div.breadcrumbs { background:#0d1117!important; border-bottom:1px solid #21262d!important; padding:10px 28px!important; font-size:12px!important; color:#8b949e!important; }
+  div.breadcrumbs a { color:#0ea5e9!important; }
+
+  :root {
+    --bg:#0d1117; --card:#161b22; --card2:#1c2333; --border:#30363d;
+    --hover:#21262d; --accent:#0ea5e9; --green:#22c55e; --orange:#f59e0b;
+    --red:#ef4444; --purple:#8b5cf6; --text:#e6edf3; --muted:#8b949e;
+    --font:'DM Sans','Segoe UI',sans-serif; --mono:'DM Mono',monospace;
+  }
+
+  .rp { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; padding-bottom:60px; }
+
+  .rp-top {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px 14px; border-bottom:1px solid var(--border);
+    background:var(--bg); position:sticky; top:0; z-index:40; gap:16px; flex-wrap:wrap;
+  }
+  .rp-top h1 { font-size:20px; font-weight:700; margin:0 0 2px; color:var(--text); }
+  .rp-top p  { font-size:12px; color:var(--muted); margin:0; }
+  .rp-top-right { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+  select.ctrl {
+    background:var(--card2); border:1px solid var(--border); border-radius:6px;
+    color:var(--text); padding:7px 12px; font-size:12px; font-family:var(--font); cursor:pointer;
+  }
+  .btn-export {
+    background:linear-gradient(135deg,#0ea5e9,#0284c7); color:#fff; border:none;
+    border-radius:6px; padding:8px 16px; font-size:12px; font-weight:700;
+    cursor:pointer; font-family:var(--font); transition:opacity .15s;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  .btn-export:hover { opacity:.88; }
+  .btn-back {
+    background:var(--card2); color:var(--text); border:1px solid var(--border);
+    border-radius:6px; padding:7px 14px; font-size:12px; text-decoration:none;
+    font-weight:500; transition:border-color .15s;
+  }
+  .btn-back:hover { border-color:var(--accent); color:var(--text); }
+
+  .kpi-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:20px 28px 0; }
+  .kpi {
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:16px; transition:border-color .2s,transform .2s; cursor:default;
+  }
+  .kpi:hover { border-color:var(--accent); transform:translateY(-2px); }
+  .kpi-ico { font-size:20px; margin-bottom:7px; display:block; }
+  .kpi-lbl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); margin-bottom:5px; }
+  .kpi-val { font-size:22px; font-weight:700; color:var(--text); line-height:1; font-family:var(--mono); }
+  .kpi-sub { font-size:11px; color:var(--green); margin-top:4px; }
+
+  .charts { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px 28px 0; }
+  .span2  { grid-column:1/-1; }
+  .card   { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; overflow:hidden; }
+  .card-title { font-size:13px; font-weight:600; color:var(--text); margin:0 0 2px; }
+  .card-sub   { font-size:11px; color:var(--muted); margin:0 0 14px; }
+
+  .seller-list { list-style:none; margin:0; padding:0; }
+  .seller-row  { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--hover); }
+  .seller-row:last-child { border-bottom:none; }
+  .s-rank { font-size:11px; color:var(--muted); width:16px; font-family:var(--mono); }
+  .s-name { font-size:12px; color:var(--text); flex:1; }
+  .s-type { font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; text-transform:uppercase; letter-spacing:.04em; }
+  .s-type-farmer { background:rgba(34,197,94,.15); color:#22c55e; }
+  .s-type-vendor { background:rgba(59,130,246,.15); color:#3b82f6; }
+  .s-track { flex:1; max-width:100px; background:var(--card2); border-radius:999px; height:5px; }
+  .s-bar   { height:5px; border-radius:999px; background:linear-gradient(90deg,#0ea5e9,#22d3ee); transition:width 1.2s cubic-bezier(.22,1,.36,1); }
+  .s-rev   { font-size:11px; font-weight:600; color:var(--accent); font-family:var(--mono); width:70px; text-align:right; }
+
+  .loading { display:flex; align-items:center; justify-content:center; height:120px; color:var(--muted); font-size:13px; gap:8px; }
+  .spin    { width:16px; height:16px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg) } }
+
+  @media(max-width:900px) {
+    .kpi-row { grid-template-columns:repeat(2,1fr); }
+    .charts  { grid-template-columns:1fr; }
+    .span2   { grid-column:1; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rp">
+
+  <div class="rp-top">
+    <div>
+      <h1>📊 Reports &amp; Analytics</h1>
+      <p>Revenue, orders, farmers, vendors &amp; delivery — live from your database</p>
+    </div>
+    <div class="rp-top-right">
+      <select class="ctrl" id="rangeSelect" onchange="boot()">
+        <option value="7">Last 7 Days</option>
+        <option value="30" selected>Last 30 Days</option>
+        <option value="90">Last 90 Days</option>
+        <option value="365">Last Year</option>
+      </select>
+      <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+      <a href="{% url 'admin:index' %}" class="btn-back">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpiRow">
+    {% for _ in "12345" %}
+    <div class="kpi"><div class="loading"><div class="spin"></div></div></div>
+    {% endfor %}
+  </div>
+
+  <div class="charts">
+
+    <div class="card span2">
+      <p class="card-title">💰 Revenue Over Time</p>
+      <p class="card-sub">Daily revenue from delivered orders (₹)</p>
+      <canvas id="cRevenue" height="70"></canvas>
+    </div>
+
+    <div class="card">
+      <p class="card-title">📅 Monthly Revenue (12 months)</p>
+      <p class="card-sub">Month-by-month delivered order revenue</p>
+      <canvas id="cMonthly" height="200"></canvas>
+    </div>
+
+    <div class="card">
+      <p class="card-title">📦 Order Status Distribution</p>
+      <p class="card-sub">All orders in selected period</p>
+      <canvas id="cStatus" height="200"></canvas>
+    </div>
+
+    <div class="card">
+      <p class="card-title">🏆 Top Sellers by Earnings</p>
+      <p class="card-sub">Farmers &amp; vendors ranked by SellerEarning amount</p>
+      <ul class="seller-list" id="sellerList">
+        <div class="loading"><div class="spin"></div> Loading…</div>
+      </ul>
+    </div>
+
+    <div class="card">
+      <p class="card-title">🔀 Order Flow Type</p>
+      <p class="card-sub">Vendor direct vs Farmer → Collection Center</p>
+      <canvas id="cFlow" height="200"></canvas>
+    </div>
+
+    <div class="card">
+      <p class="card-title">💼 Admin Commission Trend</p>
+      <p class="card-sub">Monthly commission earned from vendor orders</p>
+      <canvas id="cCommission" height="200"></canvas>
+    </div>
+
+    <div class="card">
+      <p class="card-title">🚚 Delivery Status</p>
+      <p class="card-sub">Breakdown of all deliveries in selected period</p>
+      <canvas id="cDelivery" height="200"></canvas>
+    </div>
+
+    <div class="card span2">
+      <p class="card-title">👤 New User Registrations</p>
+      <p class="card-sub">Daily new users (role = user) in selected period</p>
+      <canvas id="cUsers" height="70"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ── Chart.js defaults ── */
+Chart.defaults.color       = '#8b949e';
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.font.size   = 11;
+Chart.defaults.borderColor = 'rgba(48,54,61,.5)';
+
+/* ── Chart registry ── */
+const _charts = {};
+function mkChart(id, cfg) {
+  if (_charts[id]) _charts[id].destroy();
+  _charts[id] = new Chart(document.getElementById(id).getContext('2d'), cfg);
+  return _charts[id];
+}
+
+/* ── Gradient helper ── */
+function grad(ctx, c1, c2 = 'rgba(0,0,0,0)', h = 200) {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, c1);
+  g.addColorStop(1, c2);
+  return g;
+}
+
+/* ── Rupee formatter ── */
+const fmt = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+/* ══════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════ */
+async function boot() {
+  const days = document.getElementById('rangeSelect').value;
+
+  document.getElementById('kpiRow').innerHTML =
+    Array(5).fill('<div class="kpi"><div class="loading"><div class="spin"></div></div></div>').join('');
+
+  try {
+    const r    = await fetch(`{% url 'admin:freshapp_reports_data' %}?days=${days}`);
+    const text = await r.text();
+    if (!r.ok) throw new Error('Server ' + r.status + ': ' + text.slice(0, 300));
+    const d = JSON.parse(text);
+    drawAll(d);
+  } catch (e) {
+    console.error('Reports API error:', e);
+    document.getElementById('kpiRow').innerHTML =
+      '<div style="grid-column:1/-1;padding:24px;color:#ef4444;font-size:13px;' +
+      'background:#1c1f26;border-radius:10px;border:1px solid #3d1f1f">' +
+      '<strong>Could not load data</strong><br>' +
+      '<code style="font-size:11px;color:#f87171">' + e.message + '</code><br>' +
+      '<span style="color:#8b949e;font-size:11px">Check DevTools console for details.</span></div>';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   DRAW ALL
+══════════════════════════════════════════════ */
+function drawAll(d) {
+  drawKPIs(d.kpis);
+  drawRevenue(d.revenue_over_time);
+  drawMonthly(d.monthly_revenue);
+  drawStatus(d.order_status);
+  drawSellers(d.top_sellers);
+  drawFlow(d.flow_data);
+  drawCommission(d.commission_trend);
+  drawDelivery(d.delivery_status);
+  drawUsers(d.user_growth);
+}
+
+/* ── KPIs ── */
+function drawKPIs(k) {
+  const cards = [
+    { ico: '📦', lbl: 'Total Orders',      val: k.total_orders.toLocaleString(),                   sub: 'In period' },
+    { ico: '💰', lbl: 'Revenue',           val: fmt(k.total_revenue),                               sub: 'Delivered orders' },
+    { ico: '👤', lbl: 'Customers',         val: k.total_users.toLocaleString(),                     sub: 'Registered users' },
+    { ico: '🌾', lbl: 'Farmers',           val: k.total_farmers + ' / Pending: ' + k.pending_kyc,  sub: 'Verified farmers' },
+    { ico: '💼', lbl: 'Commission Earned', val: fmt(k.total_commission),                            sub: 'From vendors' },
+  ];
+  document.getElementById('kpiRow').innerHTML = cards.map(c =>
+    '<div class="kpi">' +
+      '<span class="kpi-ico">' + c.ico + '</span>' +
+      '<div class="kpi-lbl">' + c.lbl + '</div>' +
+      '<div class="kpi-val">' + c.val + '</div>' +
+      '<div class="kpi-sub">' + c.sub + '</div>' +
+    '</div>'
+  ).join('');
+}
+
+/* ── Revenue line ── */
+function drawRevenue(rows) {
+  const ctx = document.getElementById('cRevenue').getContext('2d');
+  mkChart('cRevenue', {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.date),
+      datasets: [{
+        data: rows.map(r => r.revenue),
+        borderColor: '#0ea5e9',
+        borderWidth: 2.5,
+        backgroundColor: grad(ctx, 'rgba(14,165,233,.28)'),
+        fill: true,
+        tension: .45,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#0ea5e9',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + fmt(c.parsed.y) } }  /* FIX: was missing closing } */
+      },
+      scales: {
+        x: { grid: { color: 'rgba(48,54,61,.4)' }, ticks: { maxTicksLimit: 12, color: '#8b949e' } },
+        y: { grid: { color: 'rgba(48,54,61,.4)' }, ticks: { color: '#8b949e', callback: v => '₹' + (v / 1000).toFixed(0) + 'k' } }
+      }
+    }
+  });
+}
+
+/* ── Monthly bar ── */
+function drawMonthly(rows) {
+  const ctx = document.getElementById('cMonthly').getContext('2d');
+  mkChart('cMonthly', {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.month),
+      datasets: [{
+        label: 'Revenue',
+        data: rows.map(r => r.revenue),
+        backgroundColor: rows.map((_, i) => i === rows.length - 1 ? '#0ea5e9' : '#1e3a5f'),
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + fmt(c.parsed.y) } }  /* FIX: was missing closing } */
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8b949e' } },
+        y: { grid: { color: 'rgba(48,54,61,.4)' }, ticks: { color: '#8b949e', callback: v => '₹' + (v / 1000).toFixed(0) + 'k' } }
+      }
+    }
+  });
+}
+
+/* ── Order status donut ── */
+function drawStatus(rows) {
+  const COL = {
+    'Placed': '#f59e0b', 'Farmer Assigned': '#8b5cf6',
+    'Sent To Collection': '#3b82f6', 'At Collection Center': '#06b6d4',
+    'Out For Delivery': '#f97316', 'Delivered': '#22c55e', 'Cancelled': '#ef4444',
+  };
+  mkChart('cStatus', {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(r => r.status),
+      datasets: [{
+        data: rows.map(r => r.count),
+        backgroundColor: rows.map(r => COL[r.status] || '#6b7280'),
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '64%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { padding: 12, usePointStyle: true, pointStyleWidth: 8, color: '#8b949e', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+/* ── Top sellers ── */
+function drawSellers(sellers) {
+  const max = sellers[0]?.revenue || 1;
+  document.getElementById('sellerList').innerHTML = sellers.map((s, i) =>
+    '<li class="seller-row">' +
+      '<span class="s-rank">' + (i + 1) + '</span>' +
+      '<span class="s-name">' + s.name + '</span>' +
+      '<span class="s-type s-type-' + s.type + '">' + s.type + '</span>' +
+      '<div class="s-track"><div class="s-bar" style="width:' + (s.revenue / max * 100).toFixed(0) + '%"></div></div>' +
+      '<span class="s-rev">' + fmt(s.revenue) + '</span>' +
+    '</li>'
+  ).join('') || '<li style="padding:20px;text-align:center;color:var(--muted)">No data yet</li>';
+}
+
+/* ── Flow type donut ── */
+function drawFlow(rows) {
+  mkChart('cFlow', {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(r => r.flow),
+      datasets: [{
+        data: rows.map(r => r.count),
+        backgroundColor: ['#22c55e', '#3b82f6'],
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '64%',
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 14, usePointStyle: true, pointStyleWidth: 8, color: '#8b949e' } }
+      }
+    }
+  });
+}
+
+/* ── Commission line ── */
+function drawCommission(rows) {
+  const ctx = document.getElementById('cCommission').getContext('2d');
+  mkChart('cCommission', {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.month),
+      datasets: [{
+        data: rows.map(r => r.amount),
+        borderColor: '#8b5cf6',
+        borderWidth: 2,
+        backgroundColor: grad(ctx, 'rgba(139,92,246,.25)'),
+        fill: true,
+        tension: .4,
+        pointRadius: 3,
+        pointBackgroundColor: '#8b5cf6',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + fmt(c.parsed.y) } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#8b949e' } },
+        y: { grid: { color: 'rgba(48,54,61,.4)' }, ticks: { color: '#8b949e', callback: v => '₹' + (v / 1000).toFixed(0) + 'k' } }
+      }
+    }
+  });
+}
+
+/* ── Delivery donut ── */
+function drawDelivery(rows) {
+  const COL = { Assigned: '#f59e0b', 'Picked Up': '#3b82f6', Delivered: '#22c55e', Failed: '#ef4444' };
+  mkChart('cDelivery', {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(r => r.status),
+      datasets: [{
+        data: rows.map(r => r.count),
+        backgroundColor: rows.map(r => COL[r.status] || '#6b7280'),
+        borderWidth: 0,
+        hoverOffset: 8,
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '64%',
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true, pointStyleWidth: 8, color: '#8b949e' } }
+      }
+    }
+  });
+}
+
+/* ── User growth line ── */
+function drawUsers(rows) {
+  const ctx = document.getElementById('cUsers').getContext('2d');
+  mkChart('cUsers', {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.date),
+      datasets: [{
+        data: rows.map(r => r.count),
+        borderColor: '#22c55e',
+        borderWidth: 2,
+        backgroundColor: grad(ctx, 'rgba(34,197,94,.25)'),
+        fill: true,
+        tension: .4,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#22c55e',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(48,54,61,.4)' }, ticks: { maxTicksLimit: 14, color: '#8b949e' } },
+        y: { grid: { color: 'rgba(48,54,61,.4)' }, beginAtZero: true, ticks: { color: '#8b949e', callback: v => Math.round(v) } }
+      }
+    }
+  });
+}
+
+/* ── CSV export ── */
+function exportCSV() {
+  const days = document.getElementById('rangeSelect').value;
+  window.location.href = `{% url 'admin:freshapp_reports_data' %}?days=${days}&format=csv`; /* FIX: removed spaces */
+}
+
+document.addEventListener('DOMContentLoaded', boot);
+</script>
+{% endblock %}

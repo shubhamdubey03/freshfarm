@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | FreshApp Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'admin/css/freshapp_dark.css' %}">
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}" style="display:flex;align-items:center;gap:8px;text-decoration:none">
+    <span style="font-size:20px">🥦</span>
+    <span style="color:#e6edf3;font-weight:700;font-size:15px">FreshApp</span>
+    <span style="color:#8b949e;font-size:11px;font-weight:400">Admin</span>
+  </a>
+</h1>
+{% endblock %}
+
+{% block usertools %}
+<div id="user-tools" style="display:flex;align-items:center;gap:12px">
+  {% if user.is_active and user.is_staff %}
+  <span style="color:#8b949e;font-size:12px">{{ user.username }}</span>
+  <a href="{% url 'admin:freshapp_reports' %}"
+     style="background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;
+            padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700;
+            text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+            box-shadow:0 2px 8px rgba(14,165,233,.3);transition:opacity .15s"
+     onmouseover="this.style.opacity='.85'"
+     onmouseout="this.style.opacity='1'">
+    📊 Reports
+  </a>
+  {% block userlinks %}
+  {% if site_url %}<a href="{{ site_url }}" style="color:#8b949e;font-size:12px">{% trans 'View site' %}</a>{% endif %}
+  {% if user.has_usable_password %}<a href="{% url 'admin:password_change' %}" style="color:#8b949e;font-size:12px">{% trans 'Change password' %}</a>{% endif %}
+  <a href="{% url 'admin:logout' %}" style="color:#ef4444;font-size:12px">{% trans 'Log out' %}</a>
+  {% endblock %}
+  {% endif %}
+</div>
+{% endblock %}
