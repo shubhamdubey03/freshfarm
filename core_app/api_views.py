@@ -86,9 +86,10 @@ class RegisterView(APIView):
 
 class SendOTPView(APIView):
     permission_classes = [AllowAny]
-
     def post(self, request):
+        print("------00000000000000")
         serializer = SendOTPSerializer(data=request.data)
+        print("ooo",serializer)
         if serializer.is_valid():
             phone = serializer.validated_data.get("phone","country_code")
             country_code = serializer.validated_data.get("country_code", "+91")
@@ -560,7 +561,7 @@ class CategoryListView(APIView):
 
 class ProductListView(APIView):
     permission_classes = [AllowAny]
-
+    print("llll----------------------------------")
     def get(self, request):
 
         # 🔥 Base queryset (Farmer verified OR Vendor)
@@ -573,7 +574,7 @@ class ProductListView(APIView):
         ).select_related(
             "category", "seller"
         ).prefetch_related(
-            "productvariant_set"
+            "variants"
         )
 
         # 🔹 Category filter
@@ -588,7 +589,7 @@ class ProductListView(APIView):
 
         # 🔹 Optional: only show products with stock
         products = products.filter(
-            productvariant__stock__gt=0
+            variants__stock__gt=0
         ).distinct()
 
         # 🔹 Ordering
@@ -630,15 +631,10 @@ class CartListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        items = CartItem.objects.filter(
-    user=request.user
-        ).filter(
-            Q(variant__product__seller__seller_type="vendor") |
-            Q(
-                variant__product__seller__seller_type="farmer",
-                variant__product__seller__is_verified=True
-            )
+        items = CartItem.objects.filter(user=request.user).select_related(
+            "variant", "variant__product"
         )
+
         serializer = CartItemSerializer(items, many=True)
         total = sum(
             item.variant.price * item.quantity for item in items

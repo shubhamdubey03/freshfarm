@@ -1,4 +1,5 @@
 from django.db import models
+from decimal import Decimal
 from core_app.models import *
 
 # Create your models here.
@@ -31,19 +32,30 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField()
     image = models.ImageField(upload_to="products/")
-
+    stock_in_kg = models.DecimalField(           # ← farmer sirf yeh bhejega
+        max_digits=10, decimal_places=2,
+        default=0
+    )
+    harvest_date = models.DateField(null=True, blank=True)  # ← farmer yeh bhi
     created_at = models.DateTimeField(auto_now_add=True)
 
 
 class ProductVariant(models.Model):
 
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE,related_name="variants")
 
     unit = models.CharField(max_length=20)
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price = models.DecimalField(max_digits=10, decimal_places=2,default=0)
+    base_price_per_kg = models.DecimalField(         
+        max_digits=10, decimal_places=2,
+        null=True, blank=True
+    )
 
     stock = models.IntegerField()
     harvest_date = models.DateField()
+
+    def __str__(self):
+        return f"{self.product.name} - {self.unit}"
 
 class CartItem(models.Model):
 

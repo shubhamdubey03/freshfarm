@@ -114,7 +114,6 @@ class SendOTPSerializer(serializers.Serializer):
 
     country_code = serializers.CharField(max_length=5)
     phone = serializers.CharField(max_length=15)
-
     def validate(self, data):
         phone = data.get("phone")
         country_code = data.get("country_code")
@@ -126,7 +125,6 @@ class SendOTPSerializer(serializers.Serializer):
 
         data["user"] = user
         return data
-
     def create(self, validated_data):
         user = validated_data["user"]
 
@@ -333,12 +331,28 @@ class AddressCreateSerializer(serializers.ModelSerializer):
 # VARIANT CREATE / UPDATE
 # ──────────────────────────────────────────
 
+def parse_unit_to_grams(unit: str) -> Decimal:
+    unit = unit.strip().lower()
+    if unit.endswith("kg"):
+        return Decimal(unit.replace("kg", "")) * 1000
+    elif unit.endswith("g"):
+        return Decimal(unit.replace("g", ""))
+    else:
+        raise ValueError(f"Invalid unit '{unit}'. Use formats like '500g' or '1kg'.")
+
+
 class ProductVariantCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ProductVariant
-        fields = ["id", "unit", "stock", "harvest_date"]
-        # price is NOT here — only admin sets price
+        fields = ["unit", "stock", "harvest_date"]
+
+    def validate_unit(self, value):
+        try:
+            parse_unit_to_grams(value)
+        except ValueError as e:
+            raise serializers.ValidationError(str(e))
+        return value.strip().lower()    
 
     def validate_stock(self, value):
         if value < 0:
@@ -353,7 +367,7 @@ class ProductVariantAdminCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ProductVariant
-        fields = ["id", "unit", "price", "stock", "harvest_date"]
+        fields = ["unit", "price","base_price_per_kg", "stock", "harvest_date"]
 
     def validate_price(self, value):
         if value <= 0:
@@ -370,11 +384,22 @@ class ProductVariantAdminCreateSerializer(serializers.ModelSerializer):
         return value
 
 
+class ProductStockUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Product
+        fields = ["stock_in_kg", "harvest_date"]
+
+    def validate_stock_in_kg(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Stock must be greater than 0.")
+        return value    
+
+
 class ProductVariantUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = ProductVariant
-        fields = ["unit", "stock", "harvest_date"]
+        fields = ["stock", "harvest_date"]
 
 
 # ──────────────────────────────────────────
@@ -405,9 +430,12 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "description", "image", "category", "variants"]
 
     def get_variants(self, obj):
-        variants = obj.productvariant_set.filter(stock__gt=0)
-        return ProductVariantSerializer(variants, many=True).data
-
+      
+      variants = obj.variants.filter(
+        stock__gt=0,
+        price__gt=0        
+    ).order_by("price")  
+      return ProductVariantSerializer(variants, many=True).data
 
 class ProductDetailSerializer(serializers.ModelSerializer):
 
@@ -425,21 +453,23 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     def get_seller(self, obj):
         return {
             "farm_name": obj.seller.farm_name,
-            "seller_type": obj.farmer.seller_type,
+            "seller_type": obj.seller.seller_type,
         }
 
     def get_variants(self, obj):
         return ProductVariantSerializer(
-            obj.productvariant.all(), many=True
-        ).data
-
+        obj.variants.filter(        # productvariant → variants (related_name)
+            stock__gt=0,
+            price__gt=0
+        ).order_by("price"),
+        many=True
+    ).data
 
 # ──────────────────────────────────────────
 # CART
 # ──────────────────────────────────────────
 
 class CartItemSerializer(serializers.ModelSerializer):
-
     product_name = serializers.CharField(
         source="variant.product.name",
         read_only=True
@@ -458,7 +488,9 @@ class CartItemSerializer(serializers.ModelSerializer):
     )
 
     subtotal = serializers.SerializerMethodField()
-
+    def get_subtotal(self, obj):
+        # 🔥 Safe decimal calculation
+        return str(Decimal(obj.variant.price) * obj.quantity)
     class Meta:
         model = CartItem
         fields = [
@@ -472,22 +504,21 @@ class CartItemSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["created_at"]
+    
+    
 
-    def get_subtotal(self, obj):
-        # 🔥 Safe decimal calculation
-        return str(Decimal(obj.variant.price) * obj.quantity)
 
-    def to_representation(self, instance):
-        """
-        🔥 Hide item if farmer is not verified
-        (extra safety, even if someone bypassed filter)
-        """
-        seller = instance.variant.product.seller
+    # def to_representation(self, instance):
+    #     """
+    #     🔥 Hide item if farmer is not verified
+    #     (extra safety, even if someone bypassed filter)
+    #     """
+    #     seller = instance.variant.product.seller
 
-        if seller.seller_type == "farmer" and not seller.is_verified:
-            return None  # item skip ho jayega
+    #     if seller.seller_type == "farmer" and not seller.is_verified:
+    #         return None  # item skip ho jayega
 
-        return super().to_representation(instance)
+    #     return super().to_representation(instance)
 class CartItemCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -511,6 +542,8 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         #     raise serializers.ValidationError(
         #         "This product is not approved by admin yet."
         #     )
+        if variant.price <= 0:
+            raise serializers.ValidationError("This product is not available yet. Price not set.")
 
         # 🔥 2. Stock check
         if variant.stock < quantity:
