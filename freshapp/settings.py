@@ -114,6 +114,9 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ──────────────────────────────────────────
 MEDIA_URL = '/media/'
 if DEBUG:
-    MEDIA_ROOT = BASE_DIR / 'media'  # local development
+    MEDIA_ROOT = BASE_DIR / 'media' 
 else:
-    MEDIA_ROOT = '/var/www/freshfarm/media'  # VPS production          # absolute path on server
+    MEDIA_ROOT = '/var/www/freshfarm/media'  
+
+
+GOOGLE_MAPS_API_KEY = "AIzaSyB3W28JkvwAH-3J7kG35KrD3f63TsfANdU"    

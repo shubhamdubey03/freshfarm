@@ -16,6 +16,10 @@ from core_app.api_views import (
     # address
     AddressListView,
     AddressDetailView,
+    geocode_address,
+    reverse_geocode,
+    save_address,
+    get_user_addresses,
 
     # product & category
     CategoryListView,
@@ -38,7 +42,7 @@ from core_app.api_views import (
 
     # payment
     InitiatePaymentView,
-    PaymentWebhookView,
+    VerifyPaymentView,
 
     # subscription
     SubscriptionListView,
@@ -63,6 +67,10 @@ urlpatterns = [
     # ── address ───────────────────────────
     path("user/addresses/", AddressListView.as_view(),   name="address-list"),
     path("user/addresses/<int:pk>/",AddressDetailView.as_view(),name="address-detail"),
+    path("address/geocode/", geocode_address,name="geocode address"),
+    path("address/reverse-geocode/", reverse_geocode,name="reverse geocode"),
+    path("address/save/", save_address,name="save address"),
+    path("address/list/", get_user_addresses,name="user address"),
 
     # ── products ──────────────────────────
     path("user/categories/", CategoryListView.as_view(),  name="category-list"),
@@ -102,7 +110,7 @@ urlpatterns = [
 
     # ── payments ──────────────────────────
     path("user/payments/initiate/", InitiatePaymentView.as_view(),  name="payment-initiate"),
-    path("user/payments/webhook/", PaymentWebhookView.as_view(),   name="payment-webhook"),
+    path("user/payments/verify/", VerifyPaymentView.as_view(),   name="payment-webhook"),
 
     # ── subscriptions ─────────────────────
     path("user/subscriptions/", SubscriptionListView.as_view(),   name="subscription-list"),

@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
-
+import googlemaps
+from rest_framework.decorators import api_view, permission_classes
 from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.db.models import F
@@ -17,8 +18,19 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from google.auth.transport import requests
 from google.oauth2 import id_token
+import razorpay
+import hmac
+import hashlib
+import os
+from django.conf import settings
 
-from core_app.models import User, Address, Seller, Subscription
+client = razorpay.Client(
+    auth=(os.environ.get("RAZORPAY_KEY"), os.environ.get("RAZORPAY_SECRET"))
+)
+
+gmaps = googlemaps.Client(key=settings.GOOGLE_MAPS_API_KEY)
+
+from core_app.models import User, Address, Seller, Subscription,City,State
 from core_app.user_serializers import (
     RegisterSerializer,
     SendOTPSerializer,
@@ -338,7 +350,155 @@ class AddressDetailView(APIView):
             status=status.HTTP_204_NO_CONTENT,
         )
     
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def geocode_address(request):
+    """Convert address text → lat/lng using Google Maps"""
+    address_text = request.data.get("address")
+    if not address_text:
+        return Response({"error": "Address is required"}, status=400)
 
+    result = gmaps.geocode(address_text)
+    if not result:
+        return Response({"error": "Address not found"}, status=404)
+
+    location = result[0]["geometry"]["location"]
+    formatted = result[0]["formatted_address"]
+
+    # Extract components
+    components = result[0]["address_components"]
+    city_name, state_name, pincode = "", "", ""
+
+    for comp in components:
+        if "locality" in comp["types"]:
+            city_name = comp["long_name"]
+        if "administrative_area_level_1" in comp["types"]:
+            state_name = comp["long_name"]
+        if "postal_code" in comp["types"]:
+            pincode = comp["long_name"]
+
+    return Response({
+        "latitude": location["lat"],
+        "longitude": location["lng"],
+        "formatted_address": formatted,
+        "city": city_name,
+        "state": state_name,
+        "pincode": pincode,
+    })
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def reverse_geocode(request):
+    """Convert lat/lng → address"""
+    lat = request.data.get("latitude")
+    lng = request.data.get("longitude")
+
+    if not lat or not lng:
+        return Response({"error": "lat/lng required"}, status=400)
+
+    result = gmaps.reverse_geocode((lat, lng))
+    if not result:
+        return Response({"error": "Location not found"}, status=404)
+
+    formatted = result[0]["formatted_address"]
+    components = result[0]["address_components"]
+    city_name, state_name, pincode = "", "", ""
+
+    for comp in components:
+        if "locality" in comp["types"]:
+            city_name = comp["long_name"]
+        if "administrative_area_level_1" in comp["types"]:
+            state_name = comp["long_name"]
+        if "postal_code" in comp["types"]:
+            pincode = comp["long_name"]
+
+    return Response({
+        "formatted_address": formatted,
+        "city": city_name,
+        "state": state_name,
+        "pincode": pincode,
+    })
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def save_address(request):
+    data = request.data
+    user = request.user
+
+    address_line = data.get("address_line", "").strip()
+    city_name = data.get("city", "").strip()
+    state_name  = data.get("state", "").strip()
+    pincode = data.get("pincode", "").strip()
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+
+    # ✅ Validate required fields before touching the DB
+    if not state_name:
+        return Response({"error": "State name is required. Location may not have been resolved correctly."}, status=400)
+
+    if not city_name:
+        return Response({"error": "City name is required."}, status=400)
+
+    if not address_line:
+        return Response({"error": "Address line is required."}, status=400)
+
+    if not latitude or not longitude:
+        return Response({"error": "Latitude and longitude are required."}, status=400)
+
+    # ✅ Safe get_or_create with proper defaults
+    state, _ = State.objects.get_or_create(
+        name=state_name,
+        defaults={"state_code": state_name[:10]}
+    )
+
+    city, _ = City.objects.get_or_create(
+        name=city_name,
+        state=state,
+        defaults={"pincode": pincode}
+    )
+
+    address = Address.objects.create(
+        user=user,
+        address_line=address_line,
+        city=city,
+        state=state,
+        pincode=pincode,
+        latitude=latitude,
+        longitude=longitude,
+    )
+
+    return Response({
+        "id": address.id,
+        "address_line": address.address_line,
+        "city": city.name,
+        "state": state.name,
+        "pincode": address.pincode,
+        "latitude": str(address.latitude),
+        "longitude":  str(address.longitude),
+    }, status=201)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_addresses(request):
+    """List all saved addresses of the user"""
+    addresses = Address.objects.filter(user=request.user).select_related("city", "state")
+    data = [
+        {
+            "id": a.id,
+            "address_line": a.address_line,
+            "city": a.city.name,
+            "state": a.state.name,
+            "pincode": a.pincode,
+            "latitude": str(a.latitude),
+            "longitude": str(a.longitude),
+        }
+        for a in addresses
+    ]
+    return Response(data)
 # ──────────────────────────────────────────
 # PRODUCT VARIANT DETAIL
 # ──────────────────────────────────────────
@@ -847,7 +1007,7 @@ class GetOrdersAPIView(APIView):
         if order_status:
             orders = orders.filter(status=order_status)
 
-        serializer = OrderSerializer(orders, many=True)
+        serializer = OrderSerializer(orders, many=True, context={'request': request})
         return Response({
             "count":   orders.count(),
             "results": serializer.data,
@@ -859,7 +1019,7 @@ class OrderDetailAPIView(APIView):
 
     def get(self, request, pk):
         order = get_object_or_404(Order, id=pk, user=request.user)
-        serializer = OrderSerializer(order)
+        serializer = OrderSerializer(order, context={'request': request})
         return Response(serializer.data)
 
 
@@ -923,59 +1083,70 @@ class InitiatePaymentView(APIView):
             )
 
         method = request.data.get("method", "upi")
-        transaction_id = f"TXN-{uuid.uuid4().hex[:12].upper()}"
+
+        # ✅ Create Razorpay order
+        razorpay_order = client.order.create({
+            "amount": int(float(order.total_price) * 100),  # paise
+            "currency": "INR",
+            "receipt": f"order_{order.id}",
+            "payment_capture": 1, 
+        })
 
         payment = Payment.objects.create(
-            order = order,
-            amount = order.total_price,
-            method = method,
-            transaction_id = transaction_id,
-            status = "pending",
+            order=order,
+            amount=order.total_price,
+            method=method,
+            transaction_id=razorpay_order["id"],  # store razorpay order id
+            status="pending",
         )
 
         return Response({
             "payment_id": payment.id,
             "order_id": order.id,
-            "amount": str(order.total_price),
+            "amount": int(float(order.total_price) * 100),  # paise for frontend
+            "razorpay_order_id": razorpay_order["id"],
+            "key_id": os.environ.get("RAZORPAY_KEY"),  # safe to send to frontend
             "method": method,
-            "transaction_id": transaction_id,
-            "gateway_url": f"https://pay.gateway.com/pay?txn={transaction_id}",
         })
 
-
-class PaymentWebhookView(APIView):
-    permission_classes = [AllowAny]  
+class VerifyPaymentView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from core_payment.models import Payment
-        transaction_id = request.data.get("transaction_id")
-        gateway_status = request.data.get("status")
+        razorpay_order_id   = request.data.get("razorpay_order_id")
+        razorpay_payment_id = request.data.get("razorpay_payment_id")
+        razorpay_signature  = request.data.get("razorpay_signature")
 
-        try:
-            payment = Payment.objects.get(transaction_id=transaction_id)
-        except Payment.DoesNotExist:
+        # ✅ Verify signature
+        body = f"{razorpay_order_id}|{razorpay_payment_id}"
+        expected_signature = hmac.new(
+            os.environ.get("RAZORPAY_SECRET").encode(),
+            body.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        if expected_signature != razorpay_signature:
             return Response(
-                {"error": "Payment not found."},
-                status=status.HTTP_404_NOT_FOUND,
+                {"error": "Invalid payment signature"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if gateway_status == "success":
-            payment.status = "paid"
-            payment.order.payment_status = "paid"
-        else:
-            payment.status = "failed"
-            payment.order.payment_status = "failed"
+        # ✅ Update payment and order status
+        try:
+            payment = Payment.objects.get(transaction_id=razorpay_order_id)
+        except Payment.DoesNotExist:
+            return Response({"error": "Payment not found."}, status=404)
 
+        payment.status = "paid"
+        payment.order.payment_status = "paid"
         payment.save(update_fields=["status"])
         payment.order.save(update_fields=["payment_status"])
 
         return Response({
-            "message":"Payment recorded.",
-            "order_id":payment.order.id,
-            "payment_status": payment.order.payment_status,
+            "message": "Payment verified successfully.",
+            "order_id": payment.order.id,
+            "payment_status": "paid",
         })
-
-
 # ══════════════════════════════════════════
 # SUBSCRIPTION
 # ══════════════════════════════════════════
