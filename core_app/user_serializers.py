@@ -140,7 +140,7 @@ class SendOTPSerializer(serializers.Serializer):
         )
 
         # TODO: replace print with real SMS
-        print(f"[OTP] {user.phone} → {otp_code}")
+        print(f"[OTP] {user.phone} -> {otp_code}")
 
         return {
             "message":"OTP sent successfully.",
@@ -410,7 +410,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Category
-        fields = ["id", "name", "image"]
+        fields = ["id", "name", "image", "category_type"]
 
 
 class ProductVariantSerializer(serializers.ModelSerializer):
@@ -491,6 +491,19 @@ class CartItemSerializer(serializers.ModelSerializer):
     def get_subtotal(self, obj):
         # 🔥 Safe decimal calculation
         return str(Decimal(obj.variant.price) * obj.quantity)
+
+    product_image = serializers.SerializerMethodField()
+
+    def get_product_image(self, obj):
+        request = self.context.get('request')
+        product = obj.variant.product
+        image = product.image or (product.category.image if product.category else None)
+        if image:
+            if request:
+                return request.build_absolute_uri(image.url)
+            return image.url
+        return None
+
     class Meta:
         model = CartItem
         fields = [
@@ -501,6 +514,7 @@ class CartItemSerializer(serializers.ModelSerializer):
             "price",
             "quantity",
             "subtotal",
+            "product_image",
             "created_at",
         ]
         read_only_fields = ["created_at"]

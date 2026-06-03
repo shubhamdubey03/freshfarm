@@ -31,13 +31,15 @@ class ProductSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ["id", "name", "image"]               
+        fields = ["id", "name", "image", "category_type"]               
 
 
 class CartItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='variant.product.name', read_only=True)
     price = serializers.DecimalField(source='variant.price', max_digits=10, decimal_places=2, read_only=True)
+    unit = serializers.CharField(source='variant.unit', read_only=True)
+    product_image = serializers.ImageField(source='variant.product.image', read_only=True)
 
     class Meta:
         model = CartItem
-        fields = ['id', 'variant', 'product_name', 'price', 'quantity']
+        fields = ['id', 'variant', 'product_name', 'price', 'quantity', 'unit', 'product_image']

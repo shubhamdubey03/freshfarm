@@ -12,5 +12,8 @@ class OrderStatus(models.TextChoices):
 
 class DeliveryStatus(models.TextChoices):
     ASSIGNED = "assigned", "Assigned"
+    ACCEPTED = "accepted", "Accepted"
+    DECLINED = "declined", "Declined"
     PICKED = "picked", "Picked"
+    PICKED_UP = "picked_up", "Picked Up"
     DELIVERED = "delivered", "Delivered"

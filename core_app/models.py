@@ -3,41 +3,43 @@ from django.db import models
 from datetime import timedelta
 from django.utils import timezone
 
+
 class User(AbstractUser):
 
     ROLE_CHOICES = (
         ("admin", "Admin"),
         ("user", "User"),
         ("farmer", "Farmer"),
-        ("vendor","Vendor"),
+        ("vendor", "Vendor"),
         ("delivery", "Delivery Boy"),
         ("collection_center", "Collection Center"),
     )
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
-    country_code = models.CharField(max_length=5, default="+91") 
+    country_code = models.CharField(max_length=5, default="+91")
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     profile_image = models.ImageField(
-    upload_to='profile_images/',
-    null=True,
-    blank=True
-)
+        upload_to="profile_images/", null=True, blank=True
+    )
     is_verified = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.username 
+        return self.username
+
 
 def otp_expiry():
     return timezone.now() + timedelta(seconds=59)
+
+
 class OTP(models.Model):
 
     user = models.ForeignKey(
         "core_app.User",
         on_delete=models.CASCADE,
         related_name="user_otps",
-        default=False
+        default=False,
     )
 
     otp = models.CharField(max_length=6)
@@ -50,8 +52,9 @@ class OTP(models.Model):
         return timezone.now() > self.expire_at
 
     def __str__(self):
-        return f"{self.user.phone} - {self.otp}"     
-    
+        return f"{self.user.phone} - {self.otp}"
+
+
 class State(models.Model):
 
     name = models.CharField(max_length=100)
@@ -69,11 +72,7 @@ class State(models.Model):
 
 class City(models.Model):
 
-    state = models.ForeignKey(
-        State,
-        on_delete=models.CASCADE,
-        related_name="cities"
-    )
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="cities")
 
     name = models.CharField(max_length=100)
     pincode = models.CharField(max_length=10, blank=True, null=True)
@@ -85,35 +84,28 @@ class City(models.Model):
         ordering = ["name"]
 
     def __str__(self):
-        return self.name    
-
+        return self.name
 
 
 class Address(models.Model):
 
-    user = models.ForeignKey("core_app.User", on_delete=models.CASCADE, related_name='user_address')
+    user = models.ForeignKey(
+        "core_app.User", on_delete=models.CASCADE, related_name="user_address"
+    )
     address_line = models.TextField()
-    city = models.ForeignKey(
-        City,
-        on_delete=models.CASCADE,
-        related_name="addresses"
-    )
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name="addresses")
 
-    state = models.ForeignKey(
-        State,
-        on_delete=models.CASCADE,
-        related_name="addresses"
-    )
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name="addresses")
 
     pincode = models.CharField(max_length=10)
 
     latitude = models.DecimalField(max_digits=9, decimal_places=6)
     longitude = models.DecimalField(max_digits=9, decimal_places=6)
 
-    created_at = models.DateTimeField(auto_now_add=True)  
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.user.username    
+        return self.user.username
 
 
 class Seller(models.Model):
@@ -122,8 +114,7 @@ class Seller(models.Model):
         ("vendor", "Vendor"),
     )
     user = models.OneToOneField("core_app.User", on_delete=models.CASCADE)
-    seller_type = models.CharField(max_length=20, choices=SELLER_TYPE, default='farmer')
-
+    seller_type = models.CharField(max_length=20, choices=SELLER_TYPE, default="farmer")
 
     farm_name = models.CharField(max_length=200)
     farm_location = models.CharField(max_length=200)
@@ -134,6 +125,12 @@ class Seller(models.Model):
     is_verified = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
 
     def __str__(self):
         return self.farm_name
@@ -143,11 +140,15 @@ class CollectionCenter(models.Model):
     user = models.OneToOneField("core_app.User", on_delete=models.CASCADE)
 
     center_name = models.CharField(max_length=200)
-    address = models.TextField(blank=True, null=True,default=False)
-    city = models.CharField(max_length=100,blank=True, null=True)
-    state = models.CharField(max_length=100,blank=True, null=True)   
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True) 
+    address = models.TextField(blank=True, null=True, default=False)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    latitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
+    longitude = models.DecimalField(
+        max_digits=9, decimal_places=6, null=True, blank=True
+    )
 
     is_verified = models.BooleanField(default=False)
 
@@ -155,14 +156,14 @@ class CollectionCenter(models.Model):
 
     def __str__(self):
         return self.center_name
-    
+
+
 class CollectionOrder(models.Model):
 
     order = models.ForeignKey("core_order.Order", on_delete=models.CASCADE)
 
     collection_center = models.ForeignKey(
-        "core_app.CollectionCenter",
-        on_delete=models.CASCADE
+        "core_app.CollectionCenter", on_delete=models.CASCADE
     )
 
     status = models.CharField(
@@ -171,10 +172,11 @@ class CollectionOrder(models.Model):
             ("pending", "Pending"),
             ("ready", "Ready"),
             ("assigned", "Assigned to Delivery"),
-        )
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
 
 class VendorOrder(models.Model):
 
@@ -189,9 +191,9 @@ class VendorOrder(models.Model):
             ("accepted", "Accepted"),
             ("packed", "Packed"),
             ("ready", "Ready"),
-        )
-    )        
-    
+        ),
+    )
+
 
 class Subscription(models.Model):
 
@@ -205,3 +207,14 @@ class Subscription(models.Model):
     end_date = models.DateField()
 
     is_active = models.BooleanField(default=True)
+
+
+class FCMToken(models.Model):
+    user = models.OneToOneField(
+        "core_app.user", on_delete=models.CASCADE, related_name="fcm_token"
+    )
+    token = models.TextField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username}-FCM"

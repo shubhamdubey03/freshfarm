@@ -4,15 +4,26 @@ from core_product.models import Product, ProductVariant, Category
 from core_order.models import FarmerOrder, FarmerOrderBatch, FarmerSalary
 from django.db.models import Sum
 
-
 # ──────────────────────────────────────────
 # PROFILE
 # ──────────────────────────────────────────
+
 
 class FarmerProfileSerializer(serializers.ModelSerializer):
 
     phone = serializers.CharField(source="user.phone", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
+    first_name = serializers.CharField(
+        source="user.first_name", read_only=True
+    )  # ← add
+    last_name = serializers.CharField(source="user.last_name", read_only=True)  # ←
+    image = serializers.SerializerMethodField()
+
+    def get_image(self, obj):
+        request = self.context.get("request")
+        if obj.user.profile_image and request:
+            return request.build_absolute_uri(obj.user.profile_image.url)
+        return None
 
     class Meta:
         model = Seller
@@ -26,20 +37,66 @@ class FarmerProfileSerializer(serializers.ModelSerializer):
             "seller_type",
             "phone",
             "username",
+            "first_name",
+            "last_name",
+            "image",
         ]
         read_only_fields = ["is_verified", "seller_type"]
 
 
 class FarmerProfileUpdateSerializer(serializers.ModelSerializer):
 
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    profile_image = serializers.ImageField(source="user.profile_image", required=False)
+
     class Meta:
         model = Seller
-        fields = ["farm_location", "bank_account", "ifsc_code"]
+        fields = [
+            "farm_location",
+            "bank_account",
+            "ifsc_code",
+            "first_name",
+            "last_name",
+            "profile_image",
+        ]
+
+    def update(self, instance, validated_data):
+        # 👇 nested user data alag nikalo
+        user_data = validated_data.pop("user", {})
+
+        # 👇 Seller fields update
+        instance.farm_location = validated_data.get(
+            "farm_location", instance.farm_location
+        )
+        instance.bank_account = validated_data.get(
+            "bank_account", instance.bank_account
+        )
+        instance.ifsc_code = validated_data.get("ifsc_code", instance.ifsc_code)
+        instance.save()
+
+        # 👇 User fields update
+        user = instance.user
+        print("kkk", user)
+
+        if "first_name" in user_data:
+            user.first_name = user_data["first_name"]
+
+        if "last_name" in user_data:
+            user.last_name = user_data["last_name"]
+
+        if "profile_image" in user_data:
+            user.profile_image = user_data["profile_image"]
+
+        user.save()
+
+        return instance
 
 
 # ──────────────────────────────────────────
 # PRODUCT
 # ──────────────────────────────────────────
+
 
 class ProductVariantSerializer(serializers.ModelSerializer):
 
@@ -58,13 +115,10 @@ class ProductVariantCreateSerializer(serializers.ModelSerializer):
 
 
 class ProductListSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
 
-    category_name = serializers.CharField(
-        source="category.name", read_only=True
-    )
-    variants = ProductVariantSerializer(
-        source="productvariant_set", many=True, read_only=True
-    )
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    variants = ProductVariantSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
@@ -78,6 +132,12 @@ class ProductListSerializer(serializers.ModelSerializer):
             "variants",
             "created_at",
         ]
+
+    def get_image(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
 
 
 class ProductCreateSerializer(serializers.ModelSerializer):
@@ -146,7 +206,7 @@ class ProductUpdateSerializer(serializers.ModelSerializer):
                     id=variant_id, product=instance
                 ).first()
             else:
-                variant = instance.productvariant_set.first()
+                variant = instance.variants.first()
 
             if variant:
                 if stock is not None:
@@ -162,29 +222,23 @@ class ProductUpdateSerializer(serializers.ModelSerializer):
 # ORDERS
 # ──────────────────────────────────────────
 
+
 class FarmerOrderItemSerializer(serializers.ModelSerializer):
 
     product_name = serializers.CharField(
         source="order_item.variant.product.name", read_only=True
     )
-    unit = serializers.CharField(
-        source="order_item.variant.unit", read_only=True
-    )
+    unit = serializers.CharField(source="order_item.variant.unit", read_only=True)
     price = serializers.DecimalField(
         source="order_item.price",
         max_digits=10,
         decimal_places=2,
         read_only=True,
     )
-    batch_date = serializers.DateField(
-        source="batch.date", read_only=True
-    )
-    batch_cutoff = serializers.DateTimeField(
-        source="batch.cutoff_time", read_only=True
-    )
-    batch_is_closed = serializers.BooleanField(
-        source="batch.is_closed", read_only=True
-    )
+    batch_date = serializers.DateField(source="batch.date", read_only=True)
+    batch_cutoff = serializers.DateTimeField(source="batch.cutoff_time", read_only=True)
+    batch_is_closed = serializers.BooleanField(source="batch.is_closed", read_only=True)
+    product_image = serializers.SerializerMethodField()
 
     class Meta:
         model = FarmerOrder
@@ -197,7 +251,15 @@ class FarmerOrderItemSerializer(serializers.ModelSerializer):
             "batch_date",
             "batch_cutoff",
             "batch_is_closed",
+            "product_image",
         ]
+
+    def get_product_image(self, obj):
+        request = self.context.get("request")
+        image = obj.order_item.variant.product.image
+        if image and request:
+            return request.build_absolute_uri(image.url)
+        return None
 
 
 class FarmerOrderDetailSerializer(serializers.ModelSerializer):
@@ -205,9 +267,7 @@ class FarmerOrderDetailSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(
         source="order_item.variant.product.name", read_only=True
     )
-    unit = serializers.CharField(
-        source="order_item.variant.unit", read_only=True
-    )
+    unit = serializers.CharField(source="order_item.variant.unit", read_only=True)
     price = serializers.DecimalField(
         source="order_item.price",
         max_digits=10,
@@ -255,6 +315,7 @@ class FarmerOrderDetailSerializer(serializers.ModelSerializer):
 # BATCHES
 # ──────────────────────────────────────────
 
+
 class FarmerBatchListSerializer(serializers.ModelSerializer):
 
     total_items = serializers.SerializerMethodField()
@@ -274,10 +335,9 @@ class FarmerBatchListSerializer(serializers.ModelSerializer):
 
     def get_total_items(self, obj):
         return obj.farmerorder_set.count()
+
     def get_total_quantity(self, obj):
-        result = obj.farmerorder_set.aggregate(
-            total=Sum("quantity")
-        )
+        result = obj.farmerorder_set.aggregate(total=Sum("quantity"))
         return result["total"] or 0
 
 
@@ -313,11 +373,11 @@ class FarmerBatchDetailSerializer(serializers.ModelSerializer):
     def get_collection_center(self, obj):
         # get from first farmer order in batch
         farmer = self.context.get("farmer")
-        first_order = obj.farmerorder_set.filter(
-            farmer=farmer
-        ).select_related(
-            "order_item__order__collection_center"
-        ).first()
+        first_order = (
+            obj.farmerorder_set.filter(farmer=farmer)
+            .select_related("order_item__order__collection_center")
+            .first()
+        )
 
         if not first_order:
             return None
@@ -336,6 +396,7 @@ class FarmerBatchDetailSerializer(serializers.ModelSerializer):
 # ──────────────────────────────────────────
 # SALARY
 # ──────────────────────────────────────────
+
 
 class FarmerSalarySerializer(serializers.ModelSerializer):
 

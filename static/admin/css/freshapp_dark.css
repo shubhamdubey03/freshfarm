@@ -34,6 +34,73 @@ body {
   font-family: var(--font) !important;
 }
 
+/* ── Calendar UI Fixes ── */
+.calendarbox {
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
+  overflow: visible !important;
+  padding-bottom: 10px !important;
+  z-index: 10000 !important;
+  position: absolute !important;
+}
+.clockbox {
+  width: auto !important;
+  overflow: visible !important;
+  z-index: 10000 !important;
+}
+
+.calendarbox .calendar, .clockbox .clock {
+  width: 100% !important;
+  overflow: visible !important;
+}
+
+.calendarbox table, .clockbox table {
+  width: 100% !important;
+  min-width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+.calendarbox table {
+  table-layout: fixed !important;
+}
+
+.calendarbox table tr td,
+.calendarbox table tr th {
+  padding: 6px !important;
+  min-width: unset !important;
+  font-size: 12px !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.clockbox table tr td,
+.clockbox table tr th {
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  text-align: center !important;
+}
+
+.calendarbox table thead th {
+  padding: 8px 4px !important;
+  letter-spacing: normal !important;
+  background: var(--card2) !important;
+  white-space: nowrap !important;
+}
+
+/* Fix the white bottom bar in calendar */
+.calendar-shortcuts, .calendar-cancel,
+.clockbox h2 {
+  background: var(--card) !important;
+  color: var(--text) !important;
+}
+.calendar-shortcuts a, .calendar-cancel a {
+  color: var(--accent) !important;
+}
+.calendar-shortcuts a:hover, .calendar-cancel a:hover {
+  background: var(--hover) !important;
+}
+
 /* ── Header ── */
 #header {
   background: var(--card) !important;
@@ -786,40 +853,41 @@ input[type=checkbox] {
 
 /* ── CRITICAL UI FIXES ── */
 .actions {
-    display: block !important; /* Back to block container, we'll use inline-block for items */
-    padding: 15px 24px !important;
-    background: var(--card2) !important;
-    border-bottom: 2px solid var(--border) !important;
-    white-space: nowrap !important;
+  display: block !important;
+  /* Back to block container, we'll use inline-block for items */
+  padding: 15px 24px !important;
+  background: var(--card2) !important;
+  border-bottom: 2px solid var(--border) !important;
+  white-space: nowrap !important;
 }
 
-.actions label, 
-.actions select, 
-.actions button, 
-.actions input[type=submit], 
+.actions label,
+.actions select,
+.actions button,
+.actions input[type=submit],
 .actions .action-counter {
-    display: inline-block !important;
-    vertical-align: middle !important;
-    margin: 0 15px 0 0 !important;
-    float: none !important;
-    position: static !important;
-    width: auto !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
+  margin: 0 15px 0 0 !important;
+  float: none !important;
+  position: static !important;
+  width: auto !important;
 }
 
 .actions select {
-    min-width: 150px !important;
+  min-width: 150px !important;
 }
 
 .actions .action-counter {
-    margin-right: 0 !important;
-    color: var(--muted) !important;
-    font-size: 11px !important;
+  margin-right: 0 !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
 }
 
 /* Ensure buttons don't have negative margins from anywhere */
-.actions .button, 
+.actions .button,
 .actions input[type=submit] {
-    margin-left: 0 !important;
-    height: 34px !important;
-    line-height: normal !important;
+  margin-left: 0 !important;
+  height: 34px !important;
+  line-height: normal !important;
 }

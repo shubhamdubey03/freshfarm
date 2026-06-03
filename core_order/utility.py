@@ -159,16 +159,22 @@ def auto_assign_delivery(order):
             return None, False, "No VendorOrder linked to this order."
         
         vendor = vendor_order.vendor
-        seller_address = vendor.user.user_address.first()
+        pickup_lat = None
+        pickup_lon = None
         
-        if not seller_address:
-            return None, False, "Vendor has no address on file."          # ← distinguish the two cases
+        # Check Seller model directly (first priority)
+        if vendor.latitude and vendor.longitude:
+            pickup_lat = vendor.latitude
+            pickup_lon = vendor.longitude
+        else:
+            seller_address = vendor.user.user_address.first()
+            if seller_address and seller_address.latitude and seller_address.longitude:
+                pickup_lat = seller_address.latitude
+                pickup_lon = seller_address.longitude
+
+        if not pickup_lat or not pickup_lon:
+            return None, False, "Vendor is missing coordinates (latitude/longitude)."
         
-        if not seller_address.latitude or not seller_address.longitude:
-            return None, False, "Vendor address is missing coordinates."  # ← separate error
-        
-        pickup_lat = seller_address.latitude
-        pickup_lon = seller_address.longitude
         source_type = "vendor"
         pickup_center = None
 
@@ -177,17 +183,24 @@ def auto_assign_delivery(order):
 
     # ── Find available delivery boys ──────────────────────
     # "Available" = role is delivery + no active Delivery record right now
+    from django.core.cache import cache
+
     busy_boy_ids = Delivery.objects.filter(
-        status__in=["assigned", "picked_up"]
+        status__in=["assigned", "accepted", "picked_up"]
     ).values_list("delivery_boy_id", flat=True)
 
-    available_boys = User.objects.filter(
+    available_boys_qs = User.objects.filter(
         role="delivery"
     ).exclude(
         id__in=busy_boy_ids
     ).prefetch_related("user_address")
 
-    if not available_boys.exists():
+    available_boys = [
+        boy for boy in available_boys_qs
+        if not cache.get(f"declined_delivery_{order.id}_{boy.id}")
+    ]
+
+    if not available_boys:
         return None, False, "No delivery boys available right now."
 
     # ── Pick nearest using haversine ──────────────────────
@@ -225,17 +238,9 @@ def auto_assign_delivery(order):
             otp=otp,
         )
 
-        # Update order status
-        order.status = "out_for_delivery"
-        order.save(update_fields=["status"])
-
-        # Log status history
-        from core_order.models import OrderStatusHistory
-        OrderStatusHistory.objects.create(
-            order=order,
-            status="out_for_delivery",
-            updated_by=None,  # system assigned
-        )
+        # Order status is NOT changed to "out_for_delivery" here anymore.
+        # It will be updated only when the delivery boy verifies the OTP and starts the trip.
+        pass
 
     # ── Notify delivery boy ───────────────────────────────
     _notify_delivery_boy(nearest_boy, order, otp, shortest_distance)
@@ -255,15 +260,21 @@ def _notify_delivery_boy(boy, order, otp, distance_km):
             f"Pickup in {distance_km:.1f} km"
         )
 
-        # ── FCM push example ──────────────────────────────
-        # import firebase_admin.messaging as fcm
-        # fcm.send(fcm.Message(
-        #     notification=fcm.Notification(title="New Delivery", body=message),
-        #     token=boy.fcm_token,   # add fcm_token field to User model
-        # ))
+        # ── FCM push notification ────────────────────────
+        from core_app.utils.fcm import send_notification
+        send_notification(
+            user=boy,
+            title="New Delivery Assigned",
+            body=message,
+            data={
+                "order_id": str(order.id),
+                "otp": str(otp),
+                "distance": f"{distance_km:.1f}"
+            }
+        )
 
         # ── Dev fallback ──────────────────────────────────
-        print(f"[NOTIFY] → {boy.phone} : {message}")
+        print(f"[NOTIFY] -> {boy.phone} : {message}")
 
     except Exception as e:
         # Notification failure should never block delivery assignment

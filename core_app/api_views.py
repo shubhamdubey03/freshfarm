@@ -66,7 +66,12 @@ from core_order.serializers import OrderSerializer
 from core_app.models import CollectionCenter,VendorOrder
 from core_payment.models import Payment
 
-GOOGLE_CLIENT_ID = "957154860735-1582fvgetnfjqle730eth5a9gcponrfp.apps.googleusercontent.com"
+GOOGLE_CLIENT_IDS = [
+    "957154860735-1582fvgetnfjqle730eth5a9gcponrfp.apps.googleusercontent.com",
+    "543499255135-sp6gmbeb2l46dnu41lmjhg854r9dttd2.apps.googleusercontent.com",
+    "543499255135-b5h33vbm85t2fgodf4srlr8g9d7iejne.apps.googleusercontent.com",
+    "369359148592-cpien5b4f5df5ossmk3ljrnpuq9nsqgt.apps.googleusercontent.com",
+]
 
 
 # ══════════════════════════════════════════
@@ -143,7 +148,7 @@ class GoogleLoginView(APIView):
             idinfo = id_token.verify_oauth2_token(
                 token,
                 requests.Request(),
-                GOOGLE_CLIENT_ID,
+                GOOGLE_CLIENT_IDS,
             )
             email = idinfo["email"]
             name  = idinfo.get("name", "")
@@ -153,13 +158,84 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        role = request.data.get("role", "user")
+
+        first_name = ""
+        last_name = ""
+        if name:
+            parts = name.split(" ", 1)
+            first_name = parts[0]
+            if len(parts) > 1:
+                last_name = parts[1]
+
         user, created = User.objects.get_or_create(
             email=email,
             defaults={
                 "username": email,
-                "role":"user",
+                "role": role,
+                "is_verified": True,  # Auto-verify Google logins for easy testing
+                "first_name": first_name,
+                "last_name": last_name,
             },
         )
+
+        user_save_fields = []
+        if not created:
+            if not user.first_name and first_name:
+                user.first_name = first_name
+                user_save_fields.append("first_name")
+            if not user.last_name and last_name:
+                user.last_name = last_name
+                user_save_fields.append("last_name")
+
+        role_updated = False
+        if not created and user.role == "user" and role in ["vendor", "farmer", "collection_center"]:
+            user.role = role
+            user.is_verified = True
+            user_save_fields.extend(["role", "is_verified"])
+            role_updated = True
+        elif not created and not user.is_verified:
+            user.is_verified = True
+            user_save_fields.append("is_verified")
+
+        if user_save_fields:
+            user.save(update_fields=list(set(user_save_fields)))
+
+        if user.role == "farmer" and not user.is_verified:
+            return Response(
+                {"error": "Your account is pending admin approval."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Enforce/update corresponding profile
+        full_name = f"{user.first_name} {user.last_name}".strip() or user.username
+        if user.role in ["vendor", "farmer"]:
+            seller, s_created = Seller.objects.get_or_create(
+                user=user,
+                defaults={
+                    "seller_type": user.role,
+                    "farm_name": full_name,
+                    "farm_location": "",
+                    "bank_account": "",
+                    "ifsc_code": "",
+                }
+            )
+            if not s_created and (seller.farm_name == user.username or seller.farm_name == user.email or not seller.farm_name):
+                seller.farm_name = full_name
+                seller.save(update_fields=["farm_name"])
+        elif user.role == "collection_center":
+            cc, cc_created = CollectionCenter.objects.get_or_create(
+                user=user,
+                defaults={
+                    "center_name": full_name,
+                    "address": "",
+                    "city": "",
+                    "state": "",
+                }
+            )
+            if not cc_created and (cc.center_name == user.username or cc.center_name == user.email or not cc.center_name):
+                cc.center_name = full_name
+                cc.save(update_fields=["center_name"])
 
         refresh = RefreshToken.for_user(user)
 
@@ -771,17 +847,18 @@ class ProductDetailView(APIView):
                 Q(seller__seller_type="vendor") |   
                 Q(
                     seller__seller_type="farmer",
-                    seller__is_verified=True        
+                    seller__user__is_verified=True        
                 )
             ).select_related(
                 "category", "seller"
             ).prefetch_related(
-                "productvariant"
+                "variants"
             ),
             id=pk,
         )
 
         serializer = ProductDetailSerializer(product)
+        print("serializer",serializer)
         return Response(serializer.data)
 # ══════════════════════════════════════════
 # CART
@@ -879,7 +956,8 @@ class CreateOrderAPIView(APIView):
         # ── Collection center only for farmer flow ─────────
         center = None
         if flow_type == "farmer":
-            center = CollectionCenter.objects.first()
+            from core_app.utils.distance import get_nearest_collection_center
+            center = get_nearest_collection_center(address.latitude, address.longitude)
             if not center:
                 return Response(
                     {"error": "No collection center available."},
@@ -962,23 +1040,94 @@ class CreateOrderAPIView(APIView):
                 updated_by=None,
             )
 
+            # Send notifications
+            from core_app.utils.fcm import send_notification
+            # 1. Notify buyer
+            try:
+                send_notification(
+                    user=user,
+                    title="🛍️ Order Placed Successfully!",
+                    body=f"Your order #{order.id} has been placed.",
+                    data={"order_id": str(order.id), "status": order.status}
+                )
+            except Exception as e:
+                print("Failed to notify buyer on order creation:", e)
+
+            # 2. Notify assigned farmers
+            if flow_type == "farmer":
+                assigned_farmers = set()
+                for order_item, seller in order_items_created:
+                    if seller.seller_type == "farmer" and seller.id not in assigned_farmers:
+                        assigned_farmers.add(seller.id)
+                        try:
+                            send_notification(
+                                user=seller.user,
+                                title="🌾 New Order Assigned!",
+                                body=f"You have been assigned order #{order.id} for {order_item.variant.product.name}.",
+                                data={"order_id": str(order.id), "status": "farmer_assigned"}
+                            )
+                        except Exception as e:
+                            print("Failed to notify farmer on assignment:", e)
+
             # ── Create VendorOrder, wait for vendor to accept ─
             if flow_type == "vendor":
-                vendor_seller = next(
-                    (s for _, s in order_items_created if s.seller_type == "vendor"),
-                    None
-                )
-                if not vendor_seller:
-                    raise Exception("No vendor seller found in cart items.")
+                # ── Nearest vendor dhundo ──────────
+                from core_app.utils.distance import get_nearest_vendors
+                from core_app.tasks import assign_next_vendor
+                from django.core.cache import cache
+                import json
 
+                all_vendors = Seller.objects.filter(
+                    seller_type="vendor",
+                    is_verified=True,
+                    latitude__isnull=False,
+                    longitude__isnull=False,
+                )
+
+                nearest_vendors = get_nearest_vendors(
+                    address.latitude, address.longitude, all_vendors, max_distance_km=10
+                )
+
+                if not nearest_vendors:
+                    raise Exception("Koi vendor available nahi hai aapke area mein.")
+
+                vendor_ids = [v["vendor"].id for v in nearest_vendors]
+                first_vendor = nearest_vendors[0]["vendor"]
+                remaining_vendors = vendor_ids[1:]
+
+                # ── Redis queue ────────────────────
+                queue_key = f"vendor_queue_{order.id}"
+                cache.set(queue_key, json.dumps(remaining_vendors), timeout=600)
+
+                # ── VendorOrder creation ───────────
                 VendorOrder.objects.create(
                     order=order,
-                    vendor=vendor_seller,
-                    status="assigned",  # vendor must manually accept
+                    vendor=first_vendor,
+                    status="assigned",
                 )
 
-                # ── Notify vendor (like Uber/Ola) ──────────
-                # _notify_vendor(vendor_seller, order)  # uncomment when ready
+                # ── Notify vendor ──────────────────
+                try:
+                    from core_app.utils.fcm import send_notification
+                    send_notification(
+                        user=first_vendor.user,
+                        title="🛒 New Order!",
+                        body=f"Order #{order.id} has been received — {nearest_vendors[0]['distance']} km away. Please accept it!",
+                        data={
+                            "type": "new_order",
+                            "order_id": str(order.id),
+                            "distance": str(nearest_vendors[0]["distance"]),
+                            "expires_in": "30",
+                        },
+                    )
+                except Exception as e:
+                    print("Error sending vendor notification:", e)
+
+                # ── Celery task assignment countdown ──
+                try:
+                    assign_next_vendor.apply_async(args=[order.id], countdown=30)
+                except Exception as e:
+                    print("Error scheduling Celery task:", e)
 
             cart_items.delete()
 

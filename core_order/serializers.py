@@ -12,15 +12,19 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     def get_product_image(self, obj):
         request = self.context.get('request')
-        if obj.variant.product.image:
+        product = obj.variant.product
+        image = product.image or (product.category.image if product.category else None)
+        if image:
             if request:
-                return request.build_absolute_uri(obj.variant.product.image.url)
-            return obj.variant.product.image.url
+                return request.build_absolute_uri(image.url)
+            return image.url
         return None
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(source="orderitem_set", many=True, read_only=True)
     address_details = AddressSerializer(source="address", read_only=True)
+    delivery_otp = serializers.SerializerMethodField()
+    seller_details = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -35,5 +39,47 @@ class OrderSerializer(serializers.ModelSerializer):
             "payment_status",  
             "created_at",
             "items",
-            "address_details"
+            "address_details",
+            "delivery_otp",
+            "seller_details"
         ]
+
+    def get_delivery_otp(self, obj):
+        try:
+            return obj.delivery.otp
+        except Exception:
+            return None
+
+    def get_seller_details(self, obj):
+        seller = None
+        if obj.flow_type == "vendor":
+            from core_app.models import VendorOrder
+            vo = VendorOrder.objects.filter(order=obj).first()
+            if vo:
+                seller = vo.vendor
+        else:
+            item = obj.orderitem_set.first()
+            if item:
+                seller = item.seller
+        
+        if seller:
+            request = self.context.get('request')
+            profile_image_url = None
+            if seller.user.profile_image:
+                if request:
+                    profile_image_url = request.build_absolute_uri(seller.user.profile_image.url)
+                else:
+                    profile_image_url = seller.user.profile_image.url
+
+            return {
+                "id": seller.id,
+                "farm_name": seller.farm_name,
+                "farm_location": seller.farm_location,
+                "latitude": str(seller.latitude) if seller.latitude else None,
+                "longitude": str(seller.longitude) if seller.longitude else None,
+                "first_name": seller.user.first_name,
+                "last_name": seller.user.last_name,
+                "phone": seller.user.phone,
+                "profile_image": profile_image_url,
+            }
+        return None

@@ -7,6 +7,8 @@ from core_app.collection_center.views import (
     CollectionOrderReadyView,
     CollectionDeliveryListView,
     CollectionDeliveryVerifyOTPView,
+    CollectionPendingOrdersView,
+    CollectionOrderReceiveOfflineView,
 )
 
 urlpatterns = [
@@ -49,5 +51,17 @@ urlpatterns = [
         "deliveries/<int:pk>/verify-otp/",
         CollectionDeliveryVerifyOTPView.as_view(),
         name="collection-delivery-verify-otp"
+    ),
+
+    # offline collection
+    path(
+        "orders/pending/",
+        CollectionPendingOrdersView.as_view(),
+        name="collection-orders-pending"
+    ),
+    path(
+        "orders/<int:pk>/receive-offline/",
+        CollectionOrderReceiveOfflineView.as_view(),
+        name="collection-order-receive-offline"
     ),
 ]

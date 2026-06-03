@@ -5,6 +5,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from django.core.cache import cache
+from core_app.utils.fcm import send_notification
 
 from core_app.models import Seller
 from core_app.vendor.permissions import IsVendor
@@ -26,61 +28,85 @@ from core_app.vendor.vendor_serializers import (
     SellerPayoutSerializer,
 )
 
-
 # ──────────────────────────────────────────
 # HELPER — get seller from logged in user
 # ──────────────────────────────────────────
 
-def get_vendor_seller(id):
-    return get_object_or_404(
-        Seller, id=id,seller_type="vendor"
-    )
-
 
 def get_vendor_user(user):
-    return get_object_or_404(Seller,user=user,seller_type="vendor")
+    return get_object_or_404(Seller, user=user, seller_type="vendor")
+
+
+def ensure_seller_earnings_created(seller):
+    ready_orders = VendorOrder.objects.filter(
+        vendor=seller, 
+        status__in=["ready", "delivered"]
+    )
+    for vo in ready_orders:
+        order = vo.order
+        if not SellerEarning.objects.filter(seller=seller, order=order).exists():
+            for order_item in order.orderitem_set.filter(seller=seller):
+                item_earning = order_item.price * order_item.quantity * Decimal("0.90")
+                SellerEarning.objects.get_or_create(
+                    seller=seller,
+                    order=order,
+                    order_item=order_item,
+                    defaults={"amount": item_earning},
+                )
+            
+            commission_amount = order.total_price * Decimal("0.10")
+            AdminCommission.objects.get_or_create(
+                order=order,
+                defaults={
+                    "vendor": seller,
+                    "order_total": order.total_price,
+                    "commission_rate": Decimal("10.00"),
+                    "commission_amount": commission_amount,
+                },
+            )
 
 
 # ──────────────────────────────────────────
 # 1. PROFILE
 # ──────────────────────────────────────────
 
+
 class VendorProfileView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
-    def get_object(self, id):
-        return get_vendor_seller(id=id)
+    def get_object(self, request):
+        return get_vendor_user(request.user)
 
-    def get(self, request,id):
-        seller = get_vendor_seller(id)
-        serializer = VendorProfileSerializer(seller)
+    def get(self, request):
+        seller = self.get_object(request)
+        serializer = VendorProfileSerializer(seller, context={"request": request})
         return Response(serializer.data)
 
-    def delete(self, request,id):
+    def delete(self, request):
         try:
-            seller = get_vendor_seller(id)
+            seller = self.get_object(request)
         except Seller.DoesNotExist:
             return Response({"error": "Vendor not found"}, status=404)
 
         seller.delete()
 
-        return Response({
-            "message": "Vendor profile deleted successfully"
-        })  
+        return Response({"message": "Vendor profile deleted successfully"})
 
+    def patch(self, request):
+        seller = self.get_object(request)
 
-    def patch(self, request,id):
-        seller = get_vendor_seller(id)
         serializer = VendorProfileUpdateSerializer(
             seller, data=request.data, partial=True
         )
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                "message": "Profile updated.",
-                **serializer.data,
-            })
-        
+            return Response(
+                {
+                    "message": "Profile updated.",
+                    **serializer.data,
+                }
+            )
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -88,17 +114,18 @@ class VendorProfileView(APIView):
 # 2. ORDER LIST
 # ──────────────────────────────────────────
 
+
 class VendorOrderListView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
     def get(self, request):
-        seller =  get_vendor_user(request.user)
+        seller = get_vendor_user(request.user)
 
-        vendor_orders = VendorOrder.objects.filter(
-            vendor=seller
-        ).select_related(
-            "order", "order__user", "order__address"
-        ).order_by("-order__created_at")
+        vendor_orders = (
+            VendorOrder.objects.filter(vendor=seller)
+            .select_related("order", "order__user", "order__address")
+            .order_by("-order__created_at")
+        )
 
         # optional filter by status
         order_status = request.query_params.get("status")
@@ -106,24 +133,25 @@ class VendorOrderListView(APIView):
             vendor_orders = vendor_orders.filter(status=order_status)
 
         serializer = VendorOrderListSerializer(vendor_orders, many=True)
-        return Response({
-            "count": vendor_orders.count(),
-            "results": serializer.data,
-        })
+        return Response(
+            {
+                "count": vendor_orders.count(),
+                "results": serializer.data,
+            }
+        )
 
 
 # ──────────────────────────────────────────
 # 3. ORDER DETAIL
 # ──────────────────────────────────────────
 
+
 class VendorOrderDetailView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
     def get(self, request, pk):
         seller = get_vendor_user(request.user)
-        vendor_order = get_object_or_404(
-            VendorOrder, id=pk, vendor=seller
-        )
+        vendor_order = get_object_or_404(VendorOrder, id=pk, vendor=seller)
         serializer = VendorOrderDetailSerializer(vendor_order)
         return Response(serializer.data)
 
@@ -131,6 +159,7 @@ class VendorOrderDetailView(APIView):
 # ──────────────────────────────────────────
 # 4. ACCEPT ORDER
 # ──────────────────────────────────────────
+
 
 # ── Step 1: Vendor accepts order ──────────────────────────
 class VendorOrderAcceptView(APIView):
@@ -149,10 +178,20 @@ class VendorOrderAcceptView(APIView):
         vendor_order.status = "accepted"
         vendor_order.save()
 
+        queue_key = f"vendor_queue_{vendor_order.order.id}"
+        cache.delete(queue_key)
+
         OrderStatusHistory.objects.create(
             order=vendor_order.order,
-            status="placed",        # order status stays placed
+            status="placed",  # order status stays placed
             updated_by=request.user,
+        )
+
+        send_notification(
+            user=vendor_order.order.user,
+            title="Order Accepted",
+            body=f"your order has been accepted by vendor",
+            data={"type": "order_accepted", "order_id": str(vendor_order.order.id)},
         )
 
         return Response(
@@ -171,7 +210,9 @@ class VendorOrderPackedView(APIView):
 
         if vendor_order.status != "accepted":
             return Response(
-                {"error": f"Cannot mark packed. Current status is '{vendor_order.status}'."},
+                {
+                    "error": f"Cannot mark packed. Current status is '{vendor_order.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -179,7 +220,9 @@ class VendorOrderPackedView(APIView):
         vendor_order.save()
 
         return Response(
-            {"message": "Order marked as packed. Mark ready when delivery boy can pick up."},
+            {
+                "message": "Order marked as packed. Mark ready when delivery boy can pick up."
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -195,7 +238,9 @@ class VendorOrderReadyView(APIView):
         # Allow retry if stuck in 'ready' with no delivery assigned
         if vendor_order.status not in ("packed", "ready"):
             return Response(
-                {"error": f"Cannot mark ready. Current status is '{vendor_order.status}'."},
+                {
+                    "error": f"Cannot mark ready. Current status is '{vendor_order.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -203,17 +248,7 @@ class VendorOrderReadyView(APIView):
             vendor_order.status = "ready"
             vendor_order.save()
 
-        # ── Auto assign nearest delivery boy ───────────────
-        delivery, success, error = auto_assign_delivery(vendor_order.order)
-
-        if not success:
-            return Response(
-                {"error": f"Order marked ready but delivery assignment failed: {error}"},
-                status=status.HTTP_200_OK,
-            )
-
         order = vendor_order.order
-        print("order1111111",order)
 
         # ── Seller earning per order item (90%) ────────────
         for order_item in order.orderitem_set.filter(seller=seller):
@@ -237,6 +272,17 @@ class VendorOrderReadyView(APIView):
             },
         )
 
+        # ── Auto assign nearest delivery boy ───────────────
+        delivery, success, error = auto_assign_delivery(vendor_order.order)
+
+        if not success:
+            return Response(
+                {
+                    "error": f"Order marked ready but delivery assignment failed: {error}"
+                },
+                status=status.HTTP_200_OK,
+            )
+
         return Response(
             {
                 "message": "Order ready. Delivery boy assigned.",
@@ -251,66 +297,115 @@ class VendorOrderReadyView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
 # ──────────────────────────────────────────
 # 7. MY EARNINGS
 # ──────────────────────────────────────────
+
 
 class VendorEarningsView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
     def get(self, request):
         seller = get_vendor_user(request.user)
-        earnings = SellerEarning.objects.filter(
-            seller=seller
-        ).order_by("-created_at")
+        ensure_seller_earnings_created(seller)
+        earnings = SellerEarning.objects.filter(seller=seller).order_by("-created_at")
 
         serializer = SellerEarningSerializer(earnings, many=True)
-        return Response({
-            "count": earnings.count(),
-            "results": serializer.data,
-        })
+        return Response(
+            {
+                "count": earnings.count(),
+                "results": serializer.data,
+            }
+        )
 
 
 # ──────────────────────────────────────────
 # 8. EARNINGS SUMMARY
 # ──────────────────────────────────────────
 
+
 class VendorEarningsSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
     def get(self, request):
         seller = get_vendor_user(request.user)
+        ensure_seller_earnings_created(seller)
 
-        total_earned = SellerEarning.objects.filter(
-            seller=seller
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        total_earned = SellerEarning.objects.filter(seller=seller).aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0.00")
 
         total_settled = SellerEarning.objects.filter(
             seller=seller, is_settled=True
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
 
-        return Response({
-            "total_earned": str(total_earned),
-            "total_settled": str(total_settled),
-            "pending_settlement": str(total_earned - total_settled),
-        })
+        return Response(
+            {
+                "total_earned": str(total_earned),
+                "total_settled": str(total_settled),
+                "pending_settlement": str(total_earned - total_settled),
+            }
+        )
 
 
 # ──────────────────────────────────────────
 # 9. PAYOUT HISTORY
 # ──────────────────────────────────────────
 
+
 class VendorPayoutView(APIView):
     permission_classes = [IsAuthenticated, IsVendor]
 
     def get(self, request):
         seller = get_vendor_user(request.user)
-        payouts = SellerPayout.objects.filter(
-            seller=seller
-        ).order_by("-start_date")
+        ensure_seller_earnings_created(seller)
+        payouts = SellerPayout.objects.filter(seller=seller).order_by("-start_date")
 
         serializer = SellerPayoutSerializer(payouts, many=True)
-        return Response({
-            "count": payouts.count(),
-            "results": serializer.data,
-        })              
+        return Response(
+            {
+                "count": payouts.count(),
+                "results": serializer.data,
+            }
+        )
+
+    def post(self, request):
+        seller = get_vendor_user(request.user)
+        ensure_seller_earnings_created(seller)
+        
+        # Get all unsettled earnings for this seller
+        unsettled_earnings = SellerEarning.objects.filter(seller=seller, is_settled=False)
+        if not unsettled_earnings.exists():
+            return Response(
+                {"error": "No unsettled earnings found to withdraw."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        total_amount = unsettled_earnings.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        
+        # Create a SellerPayout record
+        from django.utils import timezone
+        today = timezone.now().date()
+        
+        payout = SellerPayout.objects.create(
+            seller=seller,
+            total_amount=total_amount,
+            start_date=today,
+            end_date=today,
+            is_paid=True, # Mark as paid automatically for demo/testing
+            paid_at=timezone.now()
+        )
+        
+        # Mark earnings as settled
+        unsettled_earnings.update(is_settled=True)
+        
+        return Response(
+            {
+                "message": "Withdrawal processed successfully!",
+                "payout_id": payout.id,
+                "amount": str(total_amount),
+            },
+            status=status.HTTP_201_CREATED
+        )

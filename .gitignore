@@ -30,3 +30,5 @@ staticfiles/
 
 .DS_Store
 Thumbs.db
+
+farmfresh-firebase.json

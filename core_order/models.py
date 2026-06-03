@@ -3,6 +3,7 @@ from core_app.models import *
 from core_product.models import *
 from core_order.constants import OrderStatus, DeliveryStatus
 
+
 # Create your models here.
 class Order(models.Model):
 
@@ -34,50 +35,50 @@ class Order(models.Model):
         ("farmer", "Farmer via Collection Center"),
     )
 
-    flow_type = models.CharField(max_length=20, choices=FLOW_TYPE,default="farmer")
+    flow_type = models.CharField(max_length=20, choices=FLOW_TYPE, default="farmer")
 
     user = models.ForeignKey("core_app.User", on_delete=models.CASCADE)
     address = models.ForeignKey("core_app.Address", on_delete=models.CASCADE)
 
     collection_center = models.ForeignKey(
-        "core_app.CollectionCenter",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
+        "core_app.CollectionCenter", on_delete=models.SET_NULL, null=True, blank=True
     )
 
     # 🔥 NEW
-    order_type = models.CharField(max_length=20, choices=ORDER_TYPE_CHOICES, default="pre_order")
-    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default="pending")
+    order_type = models.CharField(
+        max_length=20, choices=ORDER_TYPE_CHOICES, default="pre_order"
+    )
+    payment_status = models.CharField(
+        max_length=20, choices=PAYMENT_STATUS, default="pending"
+    )
 
     delivery_date = models.DateField(null=True, blank=True)
 
-    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+
 class OrderItem(models.Model):
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
 
-    variant = models.ForeignKey(
-        "core_product.ProductVariant",
-        on_delete=models.CASCADE
-    )
+    variant = models.ForeignKey("core_product.ProductVariant", on_delete=models.CASCADE)
 
     # 🔥 NEW (IMPORTANT)
     seller = models.ForeignKey(
         "core_app.Seller",
         on_delete=models.CASCADE,
-        null=True,      # 👈 IMPORTANT
-        blank=True
+        null=True,  # 👈 IMPORTANT
+        blank=True,
     )
 
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
     quantity = models.IntegerField()
+
 
 class OrderStatusHistory(models.Model):
     STATUS_CHOICES = (
@@ -88,14 +89,14 @@ class OrderStatusHistory(models.Model):
         ("cancelled", "Cancelled"),
     )
 
-    order = models.ForeignKey(Order, on_delete=models.CASCADE,related_name="status_history")
+    order = models.ForeignKey(
+        Order, on_delete=models.CASCADE, related_name="status_history"
+    )
 
-    status = models.CharField(max_length=50,choices=STATUS_CHOICES)
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES)
 
     updated_by = models.ForeignKey(
-        "core_app.User",
-        on_delete=models.SET_NULL,
-        null=True
+        "core_app.User", on_delete=models.SET_NULL, null=True
     )
 
     updated_at = models.DateTimeField(auto_now_add=True)
@@ -110,26 +111,25 @@ class Delivery(models.Model):
 
     order = models.OneToOneField("core_order.Order", on_delete=models.CASCADE)
 
-    source_type = models.CharField(max_length=20, choices=DELIVERY_SOURCE, default="collection_center")
+    source_type = models.CharField(
+        max_length=20, choices=DELIVERY_SOURCE, default="collection_center"
+    )
 
     vendor = models.ForeignKey(
-        "core_app.Seller",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
+        "core_app.Seller", on_delete=models.SET_NULL, null=True, blank=True
     )
 
     pickup_center = models.ForeignKey(
-        "core_app.CollectionCenter",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True
+        "core_app.CollectionCenter", on_delete=models.SET_NULL, null=True, blank=True
     )
 
-    delivery_boy = models.ForeignKey("core_app.User", on_delete=models.SET_NULL, null=True)
+    delivery_boy = models.ForeignKey(
+        "core_app.User", on_delete=models.SET_NULL, null=True
+    )
 
-    status = models.CharField(max_length=50, choices=DeliveryStatus.choices,
-    default=DeliveryStatus.ASSIGNED)
+    status = models.CharField(
+        max_length=50, choices=DeliveryStatus.choices, default=DeliveryStatus.ASSIGNED
+    )
 
     otp = models.CharField(max_length=6)
 
@@ -151,6 +151,7 @@ class SellerEarning(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+
 class SellerPayout(models.Model):
 
     seller = models.ForeignKey("core_app.Seller", on_delete=models.CASCADE)
@@ -164,11 +165,12 @@ class SellerPayout(models.Model):
 
     paid_at = models.DateTimeField(null=True, blank=True)
 
+
 class FarmerOrderBatch(models.Model):
 
-    date = models.DateField()  
+    date = models.DateField()
 
-    cutoff_time = models.DateTimeField()  
+    cutoff_time = models.DateTimeField()
 
     is_closed = models.BooleanField(default=False)
 
@@ -185,14 +187,16 @@ class FarmerOrder(models.Model):
 
     quantity = models.IntegerField()
 
+
 # Add to core_order/models.py or a new core_finance/models.py
+
 
 class FarmerSalary(models.Model):
     farmer = models.ForeignKey(
         "core_app.Seller",
         on_delete=models.CASCADE,
         related_name="salaries",
-        limit_choices_to={"seller_type": "farmer"}
+        limit_choices_to={"seller_type": "farmer"},
     )
     month = models.DateField()  # store as first day: 2025-01-01 = Jan 2025
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -212,14 +216,12 @@ class FarmerSalary(models.Model):
 
 class AdminCommission(models.Model):
     order = models.OneToOneField(
-        "core_order.Order",
-        on_delete=models.CASCADE,
-        related_name="commission"
+        "core_order.Order", on_delete=models.CASCADE, related_name="commission"
     )
     vendor = models.ForeignKey(
         "core_app.Seller",
         on_delete=models.CASCADE,
-        limit_choices_to={"seller_type": "vendor"}
+        limit_choices_to={"seller_type": "vendor"},
     )
     order_total = models.DecimalField(max_digits=10, decimal_places=2)
     commission_rate = models.DecimalField(
@@ -234,4 +236,3 @@ class AdminCommission(models.Model):
 
     def __str__(self):
         return f"Commission ₹{self.commission_amount} on Order #{self.order_id}"
-

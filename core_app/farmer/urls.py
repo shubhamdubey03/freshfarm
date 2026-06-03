@@ -5,6 +5,7 @@ from core_app.farmer.views import (
     FarmerProductDetailView,
     FarmerOrderListView,
     FarmerOrderDetailView,
+    FarmerOrderReadyView,
     FarmerBatchListView,
     FarmerBatchDetailView,
     FarmerBatchConfirmDispatchView,
@@ -42,6 +43,11 @@ urlpatterns = [
         "orders/<int:pk>/",
         FarmerOrderDetailView.as_view(),
         name="farmer-order-detail"
+    ),
+    path(
+        "orders/<int:pk>/ready/",
+        FarmerOrderReadyView.as_view(),
+        name="farmer-order-ready"
     ),
 
     # ── batches ───────────────────────────

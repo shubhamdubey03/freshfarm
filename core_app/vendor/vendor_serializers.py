@@ -8,6 +8,9 @@ class VendorProfileSerializer(serializers.ModelSerializer):
 
     phone = serializers.CharField(source="user.phone", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
+    first_name = serializers.CharField(source="user.first_name", read_only=True)
+    last_name = serializers.CharField(source="user.last_name", read_only=True)
+    profile_image = serializers.ImageField(source="user.profile_image", read_only=True)
 
     class Meta:
         model = Seller
@@ -21,22 +24,93 @@ class VendorProfileSerializer(serializers.ModelSerializer):
             "seller_type",
             "phone",
             "username",
+            "first_name",
+            "last_name",
+            "profile_image",
+            "latitude",
+            "longitude",
         ]
         read_only_fields = ["is_verified", "seller_type"]
 
 
 class VendorProfileUpdateSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name", required=False)
+    last_name = serializers.CharField(source="user.last_name", required=False)
+    profile_image = serializers.ImageField(source="user.profile_image", required=False)
 
     class Meta:
         model = Seller
-        fields = ["farm_location", "bank_account", "ifsc_code"]
+        fields = [
+            "farm_name",
+            "farm_location",
+            "bank_account",
+            "ifsc_code",
+            "first_name",
+            "last_name",
+            "profile_image",
+            "longitude",
+            "latitude",
+        ]
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop("user", {})
+
+        instance.farm_name = validated_data.get(
+            "farm_name", instance.farm_name
+        )
+
+        new_location = validated_data.get("farm_location")
+        if new_location and new_location != instance.farm_location:
+            if "latitude" not in validated_data and "longitude" not in validated_data:
+                try:
+                    import googlemaps
+                    from django.conf import settings
+                    gmaps = googlemaps.Client(key=settings.GOOGLE_MAPS_API_KEY)
+                    result = gmaps.geocode(new_location)
+                    if result:
+                        loc = result[0]["geometry"]["location"]
+                        instance.latitude = round(loc["lat"], 6)
+                        instance.longitude = round(loc["lng"], 6)
+                except Exception as e:
+                    print("Error during backend geocoding in vendor update:", e)
+
+        instance.farm_location = validated_data.get(
+            "farm_location", instance.farm_location
+        )
+        instance.bank_account = validated_data.get(
+            "bank_account", instance.bank_account
+        )
+        instance.ifsc_code = validated_data.get("ifsc_code", instance.ifsc_code)
+        
+        # Round explicitly to 6 decimal places if provided
+        lat = validated_data.get("latitude")
+        if lat is not None:
+            instance.latitude = round(float(lat), 6)
+        
+        lng = validated_data.get("longitude")
+        if lng is not None:
+            instance.longitude = round(float(lng), 6)
+            
+        instance.save()
+
+        user = instance.user
+
+        if "first_name" in user_data:
+            user.first_name = user_data["first_name"]
+
+        if "last_name" in user_data:
+            user.last_name = user_data["last_name"]
+
+        if "profile_image" in user_data:
+            user.profile_image = user_data["profile_image"]
+
+        user.save()
+        return instance
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
 
-    product_name = serializers.CharField(
-        source="variant.product.name", read_only=True
-    )
+    product_name = serializers.CharField(source="variant.product.name", read_only=True)
     unit = serializers.CharField(source="variant.unit", read_only=True)
 
     class Meta:
@@ -53,15 +127,11 @@ class VendorOrderListSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
-    payment_type = serializers.CharField(
-        source="order.order_type", read_only=True
-    )
+    payment_type = serializers.CharField(source="order.order_type", read_only=True)
     customer_name = serializers.SerializerMethodField()
     customer_phone = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(
-        source="order.created_at", read_only=True
-    )
+    created_at = serializers.DateTimeField(source="order.created_at", read_only=True)
 
     class Meta:
         model = VendorOrder
@@ -97,9 +167,7 @@ class VendorOrderDetailSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
-    payment_type = serializers.CharField(
-        source="order.order_type", read_only=True
-    )
+    payment_type = serializers.CharField(source="order.order_type", read_only=True)
     customer = serializers.SerializerMethodField()
     items = serializers.SerializerMethodField()
 
@@ -149,5 +217,4 @@ class SellerPayoutSerializer(serializers.ModelSerializer):
             "end_date",
             "is_paid",
             "paid_at",
-        ]         
-   
+        ]

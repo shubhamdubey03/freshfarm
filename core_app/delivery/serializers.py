@@ -1,20 +1,67 @@
 from rest_framework import serializers
 from core_order.models import Delivery, OrderItem
-from core_app.models import Address
+from core_app.models import Address, User
+
+# -------------------------------------------------
+# Profile serializer
+# -------------------------------------------------
+
+
+class DeliveryProfileSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    partner_id = serializers.SerializerMethodField()
+    profile_image = serializers.SerializerMethodField()
+    is_verified = serializers.BooleanField()
+    rating = serializers.SerializerMethodField()
+    vehicle_type = serializers.SerializerMethodField()
+    documents_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "full_name",
+            "partner_id",
+            "phone",
+            "email",
+            "profile_image",
+            "is_verified",
+            "rating",
+            "vehicle_type",
+            "documents_status",
+        ]
+
+    def get_full_name(self, obj):
+        return obj.get_full_name() or obj.username
+
+    def get_partner_id(self, obj):
+        return f"DP-{obj.id:04d}"
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        if obj.profile_image and request:
+            return request.build_absolute_uri(obj.profile_image.url)
+        return None
+
+    def get_rating(self, obj):
+        return {"score": 4.5, "label": "Active Partner"}
+
+    def get_vehicle_type(self, obj):
+        return "two Wheeler (Default)"
+
+    def get_documents_status(self, obj):
+        return "verified" if obj.is_verified else "pending"
 
 
 # ──────────────────────────────────────────
 # ORDER ITEMS
 # ──────────────────────────────────────────
 
+
 class DeliveryOrderItemSerializer(serializers.ModelSerializer):
 
-    product_name = serializers.CharField(
-        source="variant.product.name", read_only=True
-    )
-    unit = serializers.CharField(
-        source="variant.unit", read_only=True
-    )
+    product_name = serializers.CharField(source="variant.product.name", read_only=True)
+    unit = serializers.CharField(source="variant.unit", read_only=True)
 
     class Meta:
         model = OrderItem
@@ -25,6 +72,7 @@ class DeliveryOrderItemSerializer(serializers.ModelSerializer):
 # DELIVERY LIST
 # ──────────────────────────────────────────
 
+
 class DeliveryListSerializer(serializers.ModelSerializer):
 
     order_id = serializers.IntegerField(source="order.id", read_only=True)
@@ -34,9 +82,7 @@ class DeliveryListSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
-    order_type = serializers.CharField(
-        source="order.order_type", read_only=True
-    )
+    order_type = serializers.CharField(source="order.order_type", read_only=True)
     pickup = serializers.SerializerMethodField()
     deliver_to = serializers.SerializerMethodField()
 
@@ -97,6 +143,7 @@ class DeliveryListSerializer(serializers.ModelSerializer):
 # DELIVERY DETAIL
 # ──────────────────────────────────────────
 
+
 class DeliveryDetailSerializer(serializers.ModelSerializer):
 
     order_id = serializers.IntegerField(source="order.id", read_only=True)
@@ -106,9 +153,7 @@ class DeliveryDetailSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True,
     )
-    order_type = serializers.CharField(
-        source="order.order_type", read_only=True
-    )
+    order_type = serializers.CharField(source="order.order_type", read_only=True)
     payment_status = serializers.CharField(
         source="order.payment_status", read_only=True
     )
@@ -179,6 +224,7 @@ class DeliveryDetailSerializer(serializers.ModelSerializer):
 # ──────────────────────────────────────────
 # DELIVERY HISTORY
 # ──────────────────────────────────────────
+
 
 class DeliveryHistorySerializer(serializers.ModelSerializer):
 
