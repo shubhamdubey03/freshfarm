@@ -30,7 +30,7 @@ client = razorpay.Client(
 
 gmaps = googlemaps.Client(key=settings.GOOGLE_MAPS_API_KEY)
 
-from core_app.models import User, Address, Seller, Subscription,City,State
+from core_app.models import User, Address, Seller, Subscription, City, State
 from core_app.user_serializers import (
     RegisterSerializer,
     SendOTPSerializer,
@@ -51,7 +51,7 @@ from core_app.user_serializers import (
     ProductVariantSerializer,
     ProductVariantUpdateSerializer,
     ProductVariantAdminCreateSerializer,
-    ProductVariantCreateSerializer
+    ProductVariantCreateSerializer,
 )
 from core_product.models import Product, Category, CartItem, ProductVariant
 from core_order.models import (
@@ -60,17 +60,13 @@ from core_order.models import (
     OrderStatusHistory,
     FarmerOrder,
     FarmerOrderBatch,
-    
 )
 from core_order.serializers import OrderSerializer
-from core_app.models import CollectionCenter,VendorOrder
+from core_app.models import CollectionCenter, VendorOrder
 from core_payment.models import Payment
 
 GOOGLE_CLIENT_IDS = [
     "957154860735-1582fvgetnfjqle730eth5a9gcponrfp.apps.googleusercontent.com",
-    "543499255135-sp6gmbeb2l46dnu41lmjhg854r9dttd2.apps.googleusercontent.com",
-    "543499255135-b5h33vbm85t2fgodf4srlr8g9d7iejne.apps.googleusercontent.com",
-    "369359148592-cpien5b4f5df5ossmk3ljrnpuq9nsqgt.apps.googleusercontent.com",
 ]
 
 
@@ -78,21 +74,22 @@ GOOGLE_CLIENT_IDS = [
 # AUTH
 # ══════════════════════════════════════════
 
+
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
-        print("serilizers",serializer,request)
+        print("serilizers", serializer, request)
         if serializer.is_valid():
-           user= serializer.save()
-           if user.role == "farmer":
+            user = serializer.save()
+            if user.role == "farmer":
                 message = "Registered successfully. Please wait for admin approval before login."
-           else:
+            else:
                 message = "User registered successfully. You can login now."
 
-           return Response(
-                {"message": message, "role":user.role},
+            return Response(
+                {"message": message, "role": user.role},
                 status=status.HTTP_201_CREATED,
             )
         return Response(
@@ -103,18 +100,18 @@ class RegisterView(APIView):
 
 class SendOTPView(APIView):
     permission_classes = [AllowAny]
+
     def post(self, request):
         print("------00000000000000")
         serializer = SendOTPSerializer(data=request.data)
-        print("ooo",serializer)
+        print("ooo", serializer)
         if serializer.is_valid():
-            phone = serializer.validated_data.get("phone","country_code")
+            phone = serializer.validated_data.get("phone", "country_code")
             country_code = serializer.validated_data.get("country_code", "+91")
-            user = User.objects.filter(phone=phone,country_code=country_code).first()
+            user = User.objects.filter(phone=phone, country_code=country_code).first()
             if user and user.role == "farmer" and not user.is_verified:
                 return Response(
-                    {"error": "Your account is pending admin approval."},
-                    status=403
+                    {"error": "Your account is pending admin approval."}, status=403
                 )
             data = serializer.save()
             return Response(data)
@@ -151,7 +148,7 @@ class GoogleLoginView(APIView):
                 GOOGLE_CLIENT_IDS,
             )
             email = idinfo["email"]
-            name  = idinfo.get("name", "")
+            name = idinfo.get("name", "")
         except ValueError:
             return Response(
                 {"error": "Invalid Google token."},
@@ -189,7 +186,11 @@ class GoogleLoginView(APIView):
                 user_save_fields.append("last_name")
 
         role_updated = False
-        if not created and user.role == "user" and role in ["vendor", "farmer", "collection_center"]:
+        if (
+            not created
+            and user.role == "user"
+            and role in ["vendor", "farmer", "collection_center"]
+        ):
             user.role = role
             user.is_verified = True
             user_save_fields.extend(["role", "is_verified"])
@@ -204,7 +205,7 @@ class GoogleLoginView(APIView):
         if user.role == "farmer" and not user.is_verified:
             return Response(
                 {"error": "Your account is pending admin approval."},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         # Enforce/update corresponding profile
@@ -218,9 +219,13 @@ class GoogleLoginView(APIView):
                     "farm_location": "",
                     "bank_account": "",
                     "ifsc_code": "",
-                }
+                },
             )
-            if not s_created and (seller.farm_name == user.username or seller.farm_name == user.email or not seller.farm_name):
+            if not s_created and (
+                seller.farm_name == user.username
+                or seller.farm_name == user.email
+                or not seller.farm_name
+            ):
                 seller.farm_name = full_name
                 seller.save(update_fields=["farm_name"])
         elif user.role == "collection_center":
@@ -231,24 +236,30 @@ class GoogleLoginView(APIView):
                     "address": "",
                     "city": "",
                     "state": "",
-                }
+                },
             )
-            if not cc_created and (cc.center_name == user.username or cc.center_name == user.email or not cc.center_name):
+            if not cc_created and (
+                cc.center_name == user.username
+                or cc.center_name == user.email
+                or not cc.center_name
+            ):
                 cc.center_name = full_name
                 cc.save(update_fields=["center_name"])
 
         refresh = RefreshToken.for_user(user)
 
-        return Response({
-            "access_token":  str(refresh.access_token),
-            "refresh_token": str(refresh),
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "role": user.role,
-            },
-        })
+        return Response(
+            {
+                "access_token": str(refresh.access_token),
+                "refresh_token": str(refresh),
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "role": user.role,
+                },
+            }
+        )
 
 
 class TokenRefreshAPIView(APIView):
@@ -263,7 +274,7 @@ class TokenRefreshAPIView(APIView):
             )
 
         try:
-            token= RefreshToken(serializer.validated_data["refresh"])
+            token = RefreshToken(serializer.validated_data["refresh"])
             access_token = str(token.access_token)
             return Response({"access": access_token})
         except TokenError:
@@ -296,11 +307,12 @@ class LogoutAPIView(APIView):
 # PROFILE
 # ══════════════════════════════════════════
 
+
 class GetProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = ProfileSerializer(request.user,context={'request': request})
+        serializer = ProfileSerializer(request.user, context={"request": request})
         return Response(serializer.data)
 
 
@@ -313,15 +325,12 @@ class UpdateProfileAPIView(APIView):
         data = request.data.copy()
 
         # handle image separately (optional but safer)
-        image = request.FILES.get('profile_image')
+        image = request.FILES.get("profile_image")
         if image:
-                data['profile_image'] = image
+            data["profile_image"] = image
 
         serializer = ProfileSerializer(
-            user,
-            data=data,
-            partial=True,
-            context={'request': request} 
+            user, data=data, partial=True, context={"request": request}
         )
 
         if serializer.is_valid():
@@ -331,17 +340,17 @@ class UpdateProfileAPIView(APIView):
             response_data = serializer.data
             if user.profile_image:
                 request = self.request
-                response_data['profile_image'] = request.build_absolute_uri(user.profile_image.url)
+                response_data["profile_image"] = request.build_absolute_uri(
+                    user.profile_image.url
+                )
 
-            return Response({
-                "message": "Profile updated successfully.",
-                "data": response_data
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Profile updated successfully.", "data": response_data},
+                status=status.HTTP_200_OK,
+            )
 
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class DeleteProfileAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -352,7 +361,7 @@ class DeleteProfileAPIView(APIView):
         if request.user.id != user_id and request.user.role != "admin":
             return Response(
                 {"error": "You are not allowed to delete this user"},
-                status=status.HTTP_403_FORBIDDEN
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         user = get_object_or_404(User, id=user_id)
@@ -363,22 +372,24 @@ class DeleteProfileAPIView(APIView):
             status=status.HTTP_204_NO_CONTENT,
         )
 
+
 # ══════════════════════════════════════════
 # ADDRESS
 # ══════════════════════════════════════════
+
 
 class AddressListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        addresses = Address.objects.filter(
-            user=request.user
-        ).order_by("-created_at")
+        addresses = Address.objects.filter(user=request.user).order_by("-created_at")
         serializer = AddressSerializer(addresses, many=True)
-        return Response({
-            "count":   addresses.count(),
-            "results": serializer.data,
-        })
+        return Response(
+            {
+                "count": addresses.count(),
+                "results": serializer.data,
+            }
+        )
 
     def post(self, request):
         serializer = AddressCreateSerializer(
@@ -409,10 +420,12 @@ class AddressDetailView(APIView):
         )
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                "message": "Address updated successfully.",
-                "data": serializer.data,
-            })
+            return Response(
+                {
+                    "message": "Address updated successfully.",
+                    "data": serializer.data,
+                }
+            )
         return Response(
             serializer.errors,
             status=status.HTTP_400_BAD_REQUEST,
@@ -425,7 +438,8 @@ class AddressDetailView(APIView):
             {"message": "Address deleted."},
             status=status.HTTP_204_NO_CONTENT,
         )
-    
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def geocode_address(request):
@@ -453,14 +467,16 @@ def geocode_address(request):
         if "postal_code" in comp["types"]:
             pincode = comp["long_name"]
 
-    return Response({
-        "latitude": location["lat"],
-        "longitude": location["lng"],
-        "formatted_address": formatted,
-        "city": city_name,
-        "state": state_name,
-        "pincode": pincode,
-    })
+    return Response(
+        {
+            "latitude": location["lat"],
+            "longitude": location["lng"],
+            "formatted_address": formatted,
+            "city": city_name,
+            "state": state_name,
+            "pincode": pincode,
+        }
+    )
 
 
 @api_view(["POST"])
@@ -489,13 +505,14 @@ def reverse_geocode(request):
         if "postal_code" in comp["types"]:
             pincode = comp["long_name"]
 
-    return Response({
-        "formatted_address": formatted,
-        "city": city_name,
-        "state": state_name,
-        "pincode": pincode,
-    })
-
+    return Response(
+        {
+            "formatted_address": formatted,
+            "city": city_name,
+            "state": state_name,
+            "pincode": pincode,
+        }
+    )
 
 
 @api_view(["POST"])
@@ -506,14 +523,19 @@ def save_address(request):
 
     address_line = data.get("address_line", "").strip()
     city_name = data.get("city", "").strip()
-    state_name  = data.get("state", "").strip()
+    state_name = data.get("state", "").strip()
     pincode = data.get("pincode", "").strip()
     latitude = data.get("latitude")
     longitude = data.get("longitude")
 
     # ✅ Validate required fields before touching the DB
     if not state_name:
-        return Response({"error": "State name is required. Location may not have been resolved correctly."}, status=400)
+        return Response(
+            {
+                "error": "State name is required. Location may not have been resolved correctly."
+            },
+            status=400,
+        )
 
     if not city_name:
         return Response({"error": "City name is required."}, status=400)
@@ -526,14 +548,11 @@ def save_address(request):
 
     # ✅ Safe get_or_create with proper defaults
     state, _ = State.objects.get_or_create(
-        name=state_name,
-        defaults={"state_code": state_name[:10]}
+        name=state_name, defaults={"state_code": state_name[:10]}
     )
 
     city, _ = City.objects.get_or_create(
-        name=city_name,
-        state=state,
-        defaults={"pincode": pincode}
+        name=city_name, state=state, defaults={"pincode": pincode}
     )
 
     address = Address.objects.create(
@@ -546,22 +565,27 @@ def save_address(request):
         longitude=longitude,
     )
 
-    return Response({
-        "id": address.id,
-        "address_line": address.address_line,
-        "city": city.name,
-        "state": state.name,
-        "pincode": address.pincode,
-        "latitude": str(address.latitude),
-        "longitude":  str(address.longitude),
-    }, status=201)
+    return Response(
+        {
+            "id": address.id,
+            "address_line": address.address_line,
+            "city": city.name,
+            "state": state.name,
+            "pincode": address.pincode,
+            "latitude": str(address.latitude),
+            "longitude": str(address.longitude),
+        },
+        status=201,
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_user_addresses(request):
     """List all saved addresses of the user"""
-    addresses = Address.objects.filter(user=request.user).select_related("city", "state")
+    addresses = Address.objects.filter(user=request.user).select_related(
+        "city", "state"
+    )
     data = [
         {
             "id": a.id,
@@ -575,26 +599,30 @@ def get_user_addresses(request):
         for a in addresses
     ]
     return Response(data)
+
+
 # ──────────────────────────────────────────
 # PRODUCT VARIANT DETAIL
 # ──────────────────────────────────────────
+
 
 class ProductVariantListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, product_pk):
-        product  = get_object_or_404(Product, id=product_pk)
+        product = get_object_or_404(Product, id=product_pk)
         variants = ProductVariant.objects.filter(
-            product=product,
-            stock__gt=0  # only show in-stock variants
+            product=product, stock__gt=0  # only show in-stock variants
         )
         serializer = ProductVariantSerializer(variants, many=True)
-        return Response({
-            "product_id": product.id,
-            "product_name": product.name,
-            "count": variants.count(),
-            "variants": serializer.data,
-        })
+        return Response(
+            {
+                "product_id": product.id,
+                "product_name": product.name,
+                "count": variants.count(),
+                "variants": serializer.data,
+            }
+        )
 
 
 class ProductVariantDetailView(APIView):
@@ -602,24 +630,24 @@ class ProductVariantDetailView(APIView):
 
     def get(self, request, product_pk, variant_pk):
         product = get_object_or_404(Product, id=product_pk)
-        variant = get_object_or_404(
-            ProductVariant,
-            id=variant_pk,
-            product=product
+        variant = get_object_or_404(ProductVariant, id=variant_pk, product=product)
+        return Response(
+            {
+                "id": variant.id,
+                "product_id": product.id,
+                "product_name": product.name,
+                "unit": variant.unit,
+                "price": str(variant.price),
+                "stock": variant.stock,
+                "harvest_date": variant.harvest_date,
+            }
         )
-        return Response({
-            "id": variant.id,
-            "product_id": product.id,
-            "product_name": product.name,
-            "unit": variant.unit,
-            "price": str(variant.price),
-            "stock": variant.stock,
-            "harvest_date": variant.harvest_date,
-        })    
-    
+
+
 # ──────────────────────────────────────────
 # VARIANT CREATE (farmer creates for own product)
 # ──────────────────────────────────────────
+
 
 class ProductVariantCreateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -628,25 +656,13 @@ class ProductVariantCreateView(APIView):
 
         # get product — farmer can only add variant to own product
         if request.user.role == "farmer":
-            seller  = get_object_or_404(
-                Seller,
-                user=request.user,
-                seller_type="farmer"
-            )
-            product = get_object_or_404(
-                Product,
-                id=product_pk,
-                farmer=seller
-            )
-            serializer = ProductVariantCreateSerializer(
-                data=request.data
-            )
+            seller = get_object_or_404(Seller, user=request.user, seller_type="farmer")
+            product = get_object_or_404(Product, id=product_pk, farmer=seller)
+            serializer = ProductVariantCreateSerializer(data=request.data)
 
         elif request.user.role == "admin":
             product = get_object_or_404(Product, id=product_pk)
-            serializer = ProductVariantAdminCreateSerializer(
-                data=request.data
-            )
+            serializer = ProductVariantAdminCreateSerializer(data=request.data)
 
         else:
             return Response(
@@ -657,9 +673,11 @@ class ProductVariantCreateView(APIView):
         if serializer.is_valid():
             variant = serializer.save(
                 product=product,
-                price=0  # default 0, admin sets later if farmer created
-                if request.user.role == "farmer"
-                else serializer.validated_data.get("price", 0),
+                price=(
+                    0  # default 0, admin sets later if farmer created
+                    if request.user.role == "farmer"
+                    else serializer.validated_data.get("price", 0)
+                ),
             )
             return Response(
                 {
@@ -687,6 +705,7 @@ class ProductVariantCreateView(APIView):
 # VARIANT UPDATE / DELETE
 # ──────────────────────────────────────────
 
+
 class ProductVariantManageView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -696,11 +715,7 @@ class ProductVariantManageView(APIView):
 
         # farmer can only update own product variants
         if request.user.role == "farmer":
-            seller = get_object_or_404(
-                Seller,
-                user=request.user,
-                seller_type="farmer"
-            )
+            seller = get_object_or_404(Seller, user=request.user, seller_type="farmer")
             if product.farmer != seller:
                 return Response(
                     {"error": "You can only update your own product variants."},
@@ -718,11 +733,7 @@ class ProductVariantManageView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        variant    = get_object_or_404(
-            ProductVariant,
-            id=variant_pk,
-            product=product
-        )
+        variant = get_object_or_404(ProductVariant, id=variant_pk, product=product)
         serializer = serializer_class(
             variant,
             data=request.data,
@@ -731,16 +742,18 @@ class ProductVariantManageView(APIView):
 
         if serializer.is_valid():
             serializer.save()
-            return Response({
-                "message": "Variant updated successfully.",
-                "variant": {
-                    "id": variant.id,
-                    "unit": variant.unit,
-                    "price": str(variant.price),
-                    "stock": variant.stock,
-                    "harvest_date": variant.harvest_date,
-                },
-            })
+            return Response(
+                {
+                    "message": "Variant updated successfully.",
+                    "variant": {
+                        "id": variant.id,
+                        "unit": variant.unit,
+                        "price": str(variant.price),
+                        "stock": variant.stock,
+                        "harvest_date": variant.harvest_date,
+                    },
+                }
+            )
 
         return Response(
             serializer.errors,
@@ -753,11 +766,7 @@ class ProductVariantManageView(APIView):
 
         # farmer can only delete own product variants
         if request.user.role == "farmer":
-            seller = get_object_or_404(
-                Seller,
-                user=request.user,
-                seller_type="farmer"
-            )
+            seller = get_object_or_404(Seller, user=request.user, seller_type="farmer")
             if product.farmer != seller:
                 return Response(
                     {"error": "You can only delete your own product variants."},
@@ -770,21 +779,19 @@ class ProductVariantManageView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        variant = get_object_or_404(
-            ProductVariant,
-            id=variant_pk,
-            product=product
-        )
+        variant = get_object_or_404(ProductVariant, id=variant_pk, product=product)
         variant.delete()
 
         return Response(
             {"message": "Variant deleted."},
             status=status.HTTP_204_NO_CONTENT,
-        )    
-    
+        )
+
+
 # ══════════════════════════════════════════
 # PRODUCTS & CATEGORIES
 # ══════════════════════════════════════════
+
 
 class CategoryListView(APIView):
     permission_classes = [AllowAny]
@@ -798,19 +805,17 @@ class CategoryListView(APIView):
 class ProductListView(APIView):
     permission_classes = [AllowAny]
     print("llll----------------------------------")
+
     def get(self, request):
 
         # 🔥 Base queryset (Farmer verified OR Vendor)
-        products = Product.objects.filter(
-            Q(seller__seller_type="vendor") |
-            Q(
-                seller__seller_type="farmer",
-                seller__user__is_verified=True
+        products = (
+            Product.objects.filter(
+                Q(seller__seller_type="vendor")
+                | Q(seller__seller_type="farmer", seller__user__is_verified=True)
             )
-        ).select_related(
-            "category", "seller"
-        ).prefetch_related(
-            "variants"
+            .select_related("category", "seller")
+            .prefetch_related("variants")
         )
 
         # 🔹 Category filter
@@ -824,19 +829,20 @@ class ProductListView(APIView):
             products = products.filter(name__icontains=search)
 
         # 🔹 Optional: only show products with stock
-        products = products.filter(
-            variants__stock__gt=0
-        ).distinct()
+        products = products.filter(variants__stock__gt=0).distinct()
 
         # 🔹 Ordering
         products = products.order_by("-created_at")
 
         serializer = ProductListSerializer(products, many=True)
 
-        return Response({
-            "count": products.count(),
-            "results": serializer.data,
-        })
+        return Response(
+            {
+                "count": products.count(),
+                "results": serializer.data,
+            }
+        )
+
 
 class ProductDetailView(APIView):
     permission_classes = [AllowAny]
@@ -844,25 +850,23 @@ class ProductDetailView(APIView):
     def get(self, request, pk):
         product = get_object_or_404(
             Product.objects.filter(
-                Q(seller__seller_type="vendor") |   
-                Q(
-                    seller__seller_type="farmer",
-                    seller__user__is_verified=True        
-                )
-            ).select_related(
-                "category", "seller"
-            ).prefetch_related(
-                "variants"
-            ),
+                Q(seller__seller_type="vendor")
+                | Q(seller__seller_type="farmer", seller__user__is_verified=True)
+            )
+            .select_related("category", "seller")
+            .prefetch_related("variants"),
             id=pk,
         )
 
         serializer = ProductDetailSerializer(product)
-        print("serializer",serializer)
+        print("serializer", serializer)
         return Response(serializer.data)
+
+
 # ══════════════════════════════════════════
 # CART
 # ══════════════════════════════════════════
+
 
 class CartListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -873,16 +877,16 @@ class CartListView(APIView):
         )
 
         serializer = CartItemSerializer(items, many=True)
-        total = sum(
-            item.variant.price * item.quantity for item in items
+        total = sum(item.variant.price * item.quantity for item in items)
+        return Response(
+            {
+                "items": serializer.data,
+                "total": str(total),
+            }
         )
-        return Response({
-            "items": serializer.data,
-            "total": str(total),
-        })
 
     def post(self, request):
-        print("request",request)
+        print("request", request)
         serializer = CartItemCreateSerializer(
             data=request.data,
             context={"request": request},
@@ -928,6 +932,7 @@ class CartItemDetailView(APIView):
 # ORDERS
 # ══════════════════════════════════════════
 
+
 class CreateOrderAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -936,9 +941,9 @@ class CreateOrderAPIView(APIView):
         address_id = request.data.get("address")
         order_type = request.data.get("order_type", "pre_order")
 
-        cart_items = CartItem.objects.select_related(
-            "variant__product__seller"
-        ).filter(user=user)
+        cart_items = CartItem.objects.select_related("variant__product__seller").filter(
+            user=user
+        )
 
         if not cart_items.exists():
             return Response(
@@ -957,6 +962,7 @@ class CreateOrderAPIView(APIView):
         center = None
         if flow_type == "farmer":
             from core_app.utils.distance import get_nearest_collection_center
+
             center = get_nearest_collection_center(address.latitude, address.longitude)
             if not center:
                 return Response(
@@ -971,7 +977,7 @@ class CreateOrderAPIView(APIView):
             order = Order.objects.create(
                 user=user,
                 address=address,
-                collection_center=center,   # None for vendor flow
+                collection_center=center,  # None for vendor flow
                 status="placed",
                 total_price=Decimal("0.00"),
                 order_type=order_type,
@@ -989,9 +995,7 @@ class CreateOrderAPIView(APIView):
                 variant = item.variant
 
                 if variant.stock < item.quantity:
-                    raise Exception(
-                        f"Insufficient stock for {variant.product.name}."
-                    )
+                    raise Exception(f"Insufficient stock for {variant.product.name}.")
 
                 variant.stock = F("stock") - item.quantity
                 variant.save()
@@ -1013,9 +1017,7 @@ class CreateOrderAPIView(APIView):
                     # get or create batch
                     batch, _ = FarmerOrderBatch.objects.get_or_create(
                         date=timezone.now().date(),
-                        defaults={
-                            "cutoff_time": timezone.now() + timedelta(hours=2)
-                        }
+                        defaults={"cutoff_time": timezone.now() + timedelta(hours=2)},
                     )
 
                     FarmerOrder.objects.create(
@@ -1042,13 +1044,14 @@ class CreateOrderAPIView(APIView):
 
             # Send notifications
             from core_app.utils.fcm import send_notification
+
             # 1. Notify buyer
             try:
                 send_notification(
                     user=user,
                     title="🛍️ Order Placed Successfully!",
                     body=f"Your order #{order.id} has been placed.",
-                    data={"order_id": str(order.id), "status": order.status}
+                    data={"order_id": str(order.id), "status": order.status},
                 )
             except Exception as e:
                 print("Failed to notify buyer on order creation:", e)
@@ -1057,14 +1060,20 @@ class CreateOrderAPIView(APIView):
             if flow_type == "farmer":
                 assigned_farmers = set()
                 for order_item, seller in order_items_created:
-                    if seller.seller_type == "farmer" and seller.id not in assigned_farmers:
+                    if (
+                        seller.seller_type == "farmer"
+                        and seller.id not in assigned_farmers
+                    ):
                         assigned_farmers.add(seller.id)
                         try:
                             send_notification(
                                 user=seller.user,
                                 title="🌾 New Order Assigned!",
                                 body=f"You have been assigned order #{order.id} for {order_item.variant.product.name}.",
-                                data={"order_id": str(order.id), "status": "farmer_assigned"}
+                                data={
+                                    "order_id": str(order.id),
+                                    "status": "farmer_assigned",
+                                },
                             )
                         except Exception as e:
                             print("Failed to notify farmer on assignment:", e)
@@ -1109,6 +1118,7 @@ class CreateOrderAPIView(APIView):
                 # ── Notify vendor ──────────────────
                 try:
                     from core_app.utils.fcm import send_notification
+
                     send_notification(
                         user=first_vendor.user,
                         title="🛒 New Order!",
@@ -1140,27 +1150,32 @@ class CreateOrderAPIView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
+
 class GetOrdersAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        orders = Order.objects.filter(
-            user=request.user
-        ).prefetch_related(
-            "orderitem_set__variant__product",
-            "status_history",
-        ).order_by("-id")
+        orders = (
+            Order.objects.filter(user=request.user)
+            .prefetch_related(
+                "orderitem_set__variant__product",
+                "status_history",
+            )
+            .order_by("-id")
+        )
 
         # optional filter
         order_status = request.query_params.get("status")
         if order_status:
             orders = orders.filter(status=order_status)
 
-        serializer = OrderSerializer(orders, many=True, context={'request': request})
-        return Response({
-            "count":   orders.count(),
-            "results": serializer.data,
-        })
+        serializer = OrderSerializer(orders, many=True, context={"request": request})
+        return Response(
+            {
+                "count": orders.count(),
+                "results": serializer.data,
+            }
+        )
 
 
 class OrderDetailAPIView(APIView):
@@ -1168,7 +1183,7 @@ class OrderDetailAPIView(APIView):
 
     def get(self, request, pk):
         order = get_object_or_404(Order, id=pk, user=request.user)
-        serializer = OrderSerializer(order, context={'request': request})
+        serializer = OrderSerializer(order, context={"request": request})
         return Response(serializer.data)
 
 
@@ -1184,7 +1199,7 @@ class CancelOrderAPIView(APIView):
             return Response(
                 {
                     "error": f"Order cannot be cancelled. "
-                             f"Current status is '{order.status}'."
+                    f"Current status is '{order.status}'."
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -1199,21 +1214,24 @@ class CancelOrderAPIView(APIView):
             order.save(update_fields=["status"])
 
             OrderStatusHistory.objects.create(
-                order      = order,
-                status     = "cancelled",
-                updated_by = request.user,
+                order=order,
+                status="cancelled",
+                updated_by=request.user,
             )
 
-        return Response({
-            "message":  "Order cancelled successfully.",
-            "order_id": order.id,
-            "status":   "cancelled",
-        })
+        return Response(
+            {
+                "message": "Order cancelled successfully.",
+                "order_id": order.id,
+                "status": "cancelled",
+            }
+        )
 
 
 # ══════════════════════════════════════════
 # PAYMENT
 # ══════════════════════════════════════════
+
 
 class InitiatePaymentView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1234,12 +1252,14 @@ class InitiatePaymentView(APIView):
         method = request.data.get("method", "upi")
 
         # ✅ Create Razorpay order
-        razorpay_order = client.order.create({
-            "amount": int(float(order.total_price) * 100),  # paise
-            "currency": "INR",
-            "receipt": f"order_{order.id}",
-            "payment_capture": 1, 
-        })
+        razorpay_order = client.order.create(
+            {
+                "amount": int(float(order.total_price) * 100),  # paise
+                "currency": "INR",
+                "receipt": f"order_{order.id}",
+                "payment_capture": 1,
+            }
+        )
 
         payment = Payment.objects.create(
             order=order,
@@ -1249,29 +1269,30 @@ class InitiatePaymentView(APIView):
             status="pending",
         )
 
-        return Response({
-            "payment_id": payment.id,
-            "order_id": order.id,
-            "amount": int(float(order.total_price) * 100),  # paise for frontend
-            "razorpay_order_id": razorpay_order["id"],
-            "key_id": os.environ.get("RAZORPAY_KEY"),  # safe to send to frontend
-            "method": method,
-        })
+        return Response(
+            {
+                "payment_id": payment.id,
+                "order_id": order.id,
+                "amount": int(float(order.total_price) * 100),  # paise for frontend
+                "razorpay_order_id": razorpay_order["id"],
+                "key_id": os.environ.get("RAZORPAY_KEY"),  # safe to send to frontend
+                "method": method,
+            }
+        )
+
 
 class VerifyPaymentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        razorpay_order_id   = request.data.get("razorpay_order_id")
+        razorpay_order_id = request.data.get("razorpay_order_id")
         razorpay_payment_id = request.data.get("razorpay_payment_id")
-        razorpay_signature  = request.data.get("razorpay_signature")
+        razorpay_signature = request.data.get("razorpay_signature")
 
         # ✅ Verify signature
         body = f"{razorpay_order_id}|{razorpay_payment_id}"
         expected_signature = hmac.new(
-            os.environ.get("RAZORPAY_SECRET").encode(),
-            body.encode(),
-            hashlib.sha256
+            os.environ.get("RAZORPAY_SECRET").encode(), body.encode(), hashlib.sha256
         ).hexdigest()
 
         if expected_signature != razorpay_signature:
@@ -1291,29 +1312,40 @@ class VerifyPaymentView(APIView):
         payment.save(update_fields=["status"])
         payment.order.save(update_fields=["payment_status"])
 
-        return Response({
-            "message": "Payment verified successfully.",
-            "order_id": payment.order.id,
-            "payment_status": "paid",
-        })
+        return Response(
+            {
+                "message": "Payment verified successfully.",
+                "order_id": payment.order.id,
+                "payment_status": "paid",
+            }
+        )
+
+
 # ══════════════════════════════════════════
 # SUBSCRIPTION
 # ══════════════════════════════════════════
+
 
 class SubscriptionListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        subscriptions = Subscription.objects.filter(
-            user=request.user,
-            is_active=True,
-        ).select_related("product").order_by("-start_date")
+        subscriptions = (
+            Subscription.objects.filter(
+                user=request.user,
+                is_active=True,
+            )
+            .select_related("product")
+            .order_by("-start_date")
+        )
 
         serializer = SubscriptionSerializer(subscriptions, many=True)
-        return Response({
-            "count":   subscriptions.count(),
-            "results": serializer.data,
-        })
+        return Response(
+            {
+                "count": subscriptions.count(),
+                "results": serializer.data,
+            }
+        )
 
     def post(self, request):
         serializer = SubscriptionCreateSerializer(
@@ -1336,9 +1368,7 @@ class CancelSubscriptionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
-        subscription = get_object_or_404(
-            Subscription, id=pk, user=request.user
-        )
+        subscription = get_object_or_404(Subscription, id=pk, user=request.user)
 
         if not subscription.is_active:
             return Response(
@@ -1349,7 +1379,9 @@ class CancelSubscriptionView(APIView):
         subscription.is_active = False
         subscription.save(update_fields=["is_active"])
 
-        return Response({
-            "message":         "Subscription cancelled.",
-            "subscription_id": subscription.id,
-        })
+        return Response(
+            {
+                "message": "Subscription cancelled.",
+                "subscription_id": subscription.id,
+            }
+        )

@@ -1,3 +1,5 @@
+from unittest import result
+
 import firebase_admin
 from django.conf import settings
 from firebase_admin import credentials, messaging
@@ -9,6 +11,7 @@ if not firebase_admin._apps:
 
 def send_notification(user, title, body, data=None):
     """Send notification to any user. user = User object"""
+    print(f"Notification result: {result}")
 
     try:
         fcm_token = user.fcm_token.token

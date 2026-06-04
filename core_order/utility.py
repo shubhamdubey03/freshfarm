@@ -8,13 +8,13 @@ from django.db import transaction
 from core_app.models import User
 from core_order.models import Delivery
 
-
 # ─────────────────────────────────────────
 # UTILITY
 # ─────────────────────────────────────────
 
+
 def generate_otp(length=6):
-    return ''.join(random.choices(string.digits, k=length))
+    return "".join(random.choices(string.digits, k=length))
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -34,6 +34,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 # ─────────────────────────────────────────
 # 1. SEND OTP
 # ─────────────────────────────────────────
+
 
 def send_otp(user):
     """
@@ -65,7 +66,7 @@ def verify_otp(user, otp_code):
     from core_app.models import OTP
 
     try:
-        otp_instance = OTP.objects.filter(user=user).latest('created_at')
+        otp_instance = OTP.objects.filter(user=user).latest("created_at")
     except OTP.DoesNotExist:
         return False, "No OTP found. Please request a new one."
 
@@ -128,6 +129,7 @@ def _send_sms(country_code, phone, otp_code):
 # 2. AUTO ASSIGN DELIVERY BOY
 # ─────────────────────────────────────────
 
+
 def auto_assign_delivery(order):
     """
     Finds the nearest available delivery boy and creates a Delivery record.
@@ -157,11 +159,11 @@ def auto_assign_delivery(order):
             vendor_order = order.vendororder
         except Exception:
             return None, False, "No VendorOrder linked to this order."
-        
+
         vendor = vendor_order.vendor
         pickup_lat = None
         pickup_lon = None
-        
+
         # Check Seller model directly (first priority)
         if vendor.latitude and vendor.longitude:
             pickup_lat = vendor.latitude
@@ -174,7 +176,7 @@ def auto_assign_delivery(order):
 
         if not pickup_lat or not pickup_lon:
             return None, False, "Vendor is missing coordinates (latitude/longitude)."
-        
+
         source_type = "vendor"
         pickup_center = None
 
@@ -189,14 +191,15 @@ def auto_assign_delivery(order):
         status__in=["assigned", "accepted", "picked_up"]
     ).values_list("delivery_boy_id", flat=True)
 
-    available_boys_qs = User.objects.filter(
-        role="delivery"
-    ).exclude(
-        id__in=busy_boy_ids
-    ).prefetch_related("user_address")
+    available_boys_qs = (
+        User.objects.filter(role="delivery")
+        .exclude(id__in=busy_boy_ids)
+        .prefetch_related("user_address")
+    )
 
     available_boys = [
-        boy for boy in available_boys_qs
+        boy
+        for boy in available_boys_qs
         if not cache.get(f"declined_delivery_{order.id}_{boy.id}")
     ]
 
@@ -213,8 +216,7 @@ def auto_assign_delivery(order):
             continue  # skip boys with no location
 
         distance = haversine_distance(
-            pickup_lat, pickup_lon,
-            address.latitude, address.longitude
+            pickup_lat, pickup_lon, address.latitude, address.longitude
         )
 
         if distance < shortest_distance:
@@ -262,6 +264,7 @@ def _notify_delivery_boy(boy, order, otp, distance_km):
 
         # ── FCM push notification ────────────────────────
         from core_app.utils.fcm import send_notification
+
         send_notification(
             user=boy,
             title="New Delivery Assigned",
@@ -269,8 +272,8 @@ def _notify_delivery_boy(boy, order, otp, distance_km):
             data={
                 "order_id": str(order.id),
                 "otp": str(otp),
-                "distance": f"{distance_km:.1f}"
-            }
+                "distance": f"{distance_km:.1f}",
+            },
         )
 
         # ── Dev fallback ──────────────────────────────────
