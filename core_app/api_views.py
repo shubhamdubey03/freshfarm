@@ -192,8 +192,8 @@ class GoogleLoginView(APIView):
         role_updated = False
         if (
             not created
-            and user.role == "user"
-            and role in ["vendor", "farmer", "collection_center", "delivery"]
+            and user.role != role
+            and role in ["vendor", "farmer", "collection_center", "delivery", "user"]
         ):
             user.role = role
             user.is_verified = True
