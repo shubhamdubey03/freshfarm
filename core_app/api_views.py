@@ -67,6 +67,9 @@ from core_payment.models import Payment
 
 GOOGLE_CLIENT_IDS = [
     "957154860735-1582fvgetnfjqle730eth5a9gcponrfp.apps.googleusercontent.com",
+    "957154860735-v1052995bqoucfpfkh2plea28s2p5mcj.apps.googleusercontent.com",
+    "957154860735-jicjd6p4a79buj876u0phiq8rh51vhr8.apps.googleusercontent.com",
+    "957154860735-jttou9v5pgiiprhjp4v9dcasfchoken4.apps.googleusercontent.com",
 ]
 
 
@@ -149,9 +152,10 @@ class GoogleLoginView(APIView):
             )
             email = idinfo["email"]
             name = idinfo.get("name", "")
-        except ValueError:
+        except ValueError as e:
+            print(f"Google Token Verification Error: {e}")
             return Response(
-                {"error": "Invalid Google token."},
+                {"error": f"Invalid Google token. Reason: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -189,7 +193,7 @@ class GoogleLoginView(APIView):
         if (
             not created
             and user.role == "user"
-            and role in ["vendor", "farmer", "collection_center"]
+            and role in ["vendor", "farmer", "collection_center", "delivery"]
         ):
             user.role = role
             user.is_verified = True

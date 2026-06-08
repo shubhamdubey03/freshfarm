@@ -236,3 +236,16 @@ class AdminCommission(models.Model):
 
     def __str__(self):
         return f"Commission ₹{self.commission_amount} on Order #{self.order_id}"
+
+class DeliveryEarning(models.Model):
+    delivery_boy = models.ForeignKey("core_app.User", on_delete=models.CASCADE)
+    order = models.ForeignKey("core_order.Order", on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    is_settled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class AdminEarning(models.Model):
+    order = models.OneToOneField("core_order.Order", on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    is_settled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)

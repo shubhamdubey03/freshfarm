@@ -2,7 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from core_order.models import Delivery, OrderStatusHistory,SellerEarning
+from core_order.models import Delivery, OrderStatusHistory,SellerEarning, DeliveryEarning, AdminEarning
 from .serializers import OrderSerializer
 from core_order.constants import OrderStatus, DeliveryStatus
 
@@ -103,14 +103,34 @@ class DeliverOrderAPI(APIView):
             updated_by=request.user
         )
 
-        # 🔥 CREATE SELLER EARNING
+        # 🔥 CREATE EARNINGS (80% Admin, 10% Delivery, 10% Vendor)
+        import decimal
+        
+        # 1. Admin Earning (80% of total order)
+        admin_amount = order.total_price * decimal.Decimal("0.80")
+        AdminEarning.objects.get_or_create(
+            order=order,
+            defaults={"amount": admin_amount}
+        )
+        
+        # 2. Delivery Earning (10% of total order)
+        delivery_amount = order.total_price * decimal.Decimal("0.10")
+        DeliveryEarning.objects.get_or_create(
+            delivery_boy=request.user,
+            order=order,
+            defaults={"amount": delivery_amount}
+        )
+
+        # 3. Vendor Earning (10% of item total for each item)
         for item in order.orderitem_set.all():
-            SellerEarning.objects.get_or_create(
-                seller=item.seller,
-                order=order,
-                order_item=item,
-                defaults={"amount":item.price * item.quantity}
-            )
+            if item.seller:
+                vendor_amount = (item.price * item.quantity) * decimal.Decimal("0.10")
+                SellerEarning.objects.get_or_create(
+                    seller=item.seller,
+                    order=order,
+                    order_item=item,
+                    defaults={"amount": vendor_amount}
+                )
 
         return Response({"message": "Order delivered successfully"})
 class UpdateDeliveryLocationAPI(APIView):
