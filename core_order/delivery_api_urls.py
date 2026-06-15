@@ -5,5 +5,6 @@ urlpatterns = [
     path("orders/", DeliveryOrderListAPI.as_view()),
     path("pickup/<int:order_id>/", PickupOrderAPI.as_view()),
     path("deliver/<int:order_id>/", DeliverOrderAPI.as_view()),
+    path("return/<int:order_id>/", ReturnOrderAPI.as_view()),
     path("location/<int:order_id>/", UpdateDeliveryLocationAPI.as_view()),
 ]

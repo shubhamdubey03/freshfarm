@@ -8,6 +8,7 @@ class OrderStatus(models.TextChoices):
     OUT_FOR_DELIVERY = "out_for_delivery", "Out For Delivery"
     DELIVERED = "delivered", "Delivered"
     CANCELLED = "cancelled", "Cancelled"
+    RETURNED = "returned", "Returned"
 
 
 class DeliveryStatus(models.TextChoices):
@@ -17,3 +18,4 @@ class DeliveryStatus(models.TextChoices):
     PICKED = "picked", "Picked"
     PICKED_UP = "picked_up", "Picked Up"
     DELIVERED = "delivered", "Delivered"
+    RETURNED = "returned", "Returned"

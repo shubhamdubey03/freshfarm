@@ -133,6 +133,42 @@ class DeliverOrderAPI(APIView):
                 )
 
         return Response({"message": "Order delivered successfully"})
+
+
+class ReturnOrderAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            delivery = Delivery.objects.get(order_id=order_id, delivery_boy=request.user)
+        except Delivery.DoesNotExist:
+            return Response({"error": "Delivery not found"}, status=404)
+
+        if delivery.status != DeliveryStatus.PICKED:
+            return Response({"error": "Order not picked yet"}, status=400)
+
+        if "return_image" not in request.FILES:
+            return Response({"error": "Return verification photo is mandatory"}, status=400)
+
+        delivery.return_image = request.FILES["return_image"]
+        delivery.status = DeliveryStatus.RETURNED
+        delivery.delivery_time = timezone.now()
+        delivery.save()
+
+        order = delivery.order
+        order.status = OrderStatus.RETURNED
+        order.save()
+
+        # ✅ History
+        OrderStatusHistory.objects.create(
+            order=order,
+            status=OrderStatus.RETURNED,
+            updated_by=request.user
+        )
+
+        return Response({"message": "Order marked as returned successfully"})
+
+
 class UpdateDeliveryLocationAPI(APIView):
     permission_classes = [IsAuthenticated]
 

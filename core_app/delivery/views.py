@@ -329,6 +329,55 @@ class DeliveryDeliveredView(APIView):
         )
 
 
+# 4.5. MARK RETURNED — verify customer return photo
+# ──────────────────────────────────────────
+
+
+class DeliveryReturnedView(APIView):
+    permission_classes = [IsAuthenticated, IsDeliveryBoy]
+
+    def post(self, request, pk):
+        delivery = get_object_or_404(Delivery, id=pk, delivery_boy=request.user)
+
+        if delivery.status != "picked_up":
+            return Response(
+                {
+                    "error": f"Cannot mark as returned. "
+                    f"Current status is '{delivery.status}'."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if "return_image" not in request.FILES:
+            return Response(
+                {"error": "Return verification photo is mandatory."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        delivery.return_image = request.FILES["return_image"]
+        delivery.status = "returned"
+        delivery.delivery_time = timezone.now()
+        delivery.save()
+
+        order = delivery.order
+        order.status = "returned"
+        order.save(update_fields=["status"])
+
+        OrderStatusHistory.objects.create(
+            order=order,
+            status="returned",
+            updated_by=request.user,
+        )
+
+        return Response(
+            {
+                "message": "Order marked as returned successfully.",
+                "delivery_id": delivery.id,
+                "status": delivery.status,
+            }
+        )
+
+
 # ──────────────────────────────────────────
 # 5. DELIVERY HISTORY
 # ──────────────────────────────────────────
@@ -339,7 +388,7 @@ class DeliveryHistoryView(APIView):
 
     def get(self, request):
         deliveries = Delivery.objects.filter(
-            delivery_boy=request.user, status="delivered"
+            delivery_boy=request.user, status__in=["delivered", "returned"]
         ).order_by("-delivery_time")
 
         serializer = DeliveryHistorySerializer(deliveries, many=True)

@@ -15,6 +15,7 @@ class Order(models.Model):
         ("out_for_delivery", "Out For Delivery"),
         ("delivered", "Delivered"),
         ("cancelled", "Cancelled"),
+        ("returned", "Returned"),
     )
 
     ORDER_TYPE_CHOICES = (
@@ -87,6 +88,7 @@ class OrderStatusHistory(models.Model):
         ("out_for_delivery", "Out For Delivery"),
         ("delivered", "Delivered"),
         ("cancelled", "Cancelled"),
+        ("returned", "Returned"),
     )
 
     order = models.ForeignKey(
@@ -135,6 +137,7 @@ class Delivery(models.Model):
 
     pickup_time = models.DateTimeField(null=True, blank=True)
     delivery_time = models.DateTimeField(null=True, blank=True)
+    return_image = models.ImageField(upload_to="return_photos/", null=True, blank=True)
 
 
 class SellerEarning(models.Model):

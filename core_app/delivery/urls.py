@@ -4,6 +4,7 @@ from core_app.delivery.views import (
     DeliveryAssignmentDetailView,
     DeliveryPickedUpView,
     DeliveryDeliveredView,
+    DeliveryReturnedView,
     DeliveryHistoryView,
     DeliveryEarningsView,
     DeliveryLocationUpdateView,
@@ -48,6 +49,11 @@ urlpatterns = [
         "assignments/<int:pk>/delivered/",
         DeliveryDeliveredView.as_view(),
         name="delivery-delivered",
+    ),
+    path(
+        "assignments/<int:pk>/returned/",
+        DeliveryReturnedView.as_view(),
+        name="delivery-returned",
     ),
     # history & earnings
     path("history/", DeliveryHistoryView.as_view(), name="delivery-history"),
